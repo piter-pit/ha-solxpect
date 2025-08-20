@@ -1,4 +1,4 @@
-# ☀️ Solar Forecast Reproduction Tool
+# ☀️ solXpect_meets_python
 
 This Python library reproduces the energy output calculations of the original `SolarPowerPlant.java` class from [solXpect](https://github.com/woheller69/solxpect), with one minor difference: it uses a different package (`pvlib`) to calculate the sun's position.
 
