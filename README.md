@@ -11,7 +11,7 @@ The goal is to provide a transparent, reproducible, and physically aligned imple
 - ✅ Reproduces solXpect's energy output logic hour-by-hour
 - ✅ Uses Open-Meteo API for weather data (irradiance, temperature)
 - ✅ Supports shading logic, temperature derating, and inverter clipping
-- ✅ Reads plant configuration from a ZIP file containing a SQLite database
+- ✅ Reads plant configuration from a ZIP file (Backup database file from solXpect)
 - ✅ Outputs hourly energy forecasts in Wh, adjusted to local time zone
 
 ---
@@ -20,7 +20,7 @@ The goal is to provide a transparent, reproducible, and physically aligned imple
 
 - Python 3.9+
 - Internet connection (for Open-Meteo API)
-- SQLite ZIP file containing `CITIES_TO_WATCH` and `GENERAL_DATA` tables
+- Backup database file from solXpect (ZIP containing `SQLITE.db`)
 
 ### 📚 Dependencies
 
@@ -28,7 +28,6 @@ The goal is to provide a transparent, reproducible, and physically aligned imple
 |----------------|----------------------------------------------|
 | `pvlib`         | Solar position calculation                  |
 | `requests`      | API calls to Open-Meteo                     |
-| `timezonefinder` or `GeoNames API` | Time zone lookup (optional) |
 | `sqlite3`       | Reading plant configuration from ZIP        |
 | `pandas`        | Data handling and time series manipulation  |
 
