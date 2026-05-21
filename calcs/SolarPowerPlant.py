@@ -33,12 +33,24 @@ class SolarPowerPlant:
         # epochTimeSeconds: Unix timestamp, When you want to calculate the Energy between 9am and 10am you should give the function 9:30am
         # ambientTemperature: °C
         # Convert timestamp to UTC datetime
+
+		logger.debug(
+    		f"getPower START | epoch={epochTimeSeconds} | "
+    		f"DNI={solarPowerNormal} | diffuse={solarPowerDiffuse} | "
+    		f"sw={shortwaveRadiation} | temp={ambientTemperature}"
+		)
+		
         i = datetime.fromtimestamp(epochTimeSeconds, tz=timezone.utc)
 
         # Use pvlib to calculate solar position
         solarPosition = pvlib.solarposition.get_solarposition(i, self.latitude, self.longitude)
+
+		logger.debug(f"pvlib output rows={len(solarPosition)}")
+
         solarAzimuth = solarPosition['azimuth'].iloc[0]  # degrees
         solarElevation = solarPosition['elevation'].iloc[0]  # degrees
+
+		logger.debug(f"sun pos | az={solarAzimuth} | el={solarElevation}")
 
         # Calculate sun direction vector
         directionSun = [
@@ -111,6 +123,8 @@ class SolarPowerPlant:
             acPower = min(dcPower * self.inverterEfficiency, self.inverterPowerLimit)
         else:
             acPower = dcPower * self.inverterEfficiency  # no clipping for central inverter
+
+		logger.debug(f"getPower RESULT | acPower={acPower}")
 
         return float(acPower)
 
