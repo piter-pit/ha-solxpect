@@ -53,7 +53,7 @@ def compute_forecast():
         albedo=float(settings['albedo']),
         latitude=float(settings['latitude']),
         longitude=float(settings['longitude']),
-        cellsMaxPower=float(settings['cells_max_Power']),
+        cellsMaxPower=float(settings['cells_max_pPower']),
         cellsArea=float(settings['cells_area']),
         cellsEfficiency=float(settings['cells_efficiency']),
         cellsTempCoeff=float(settings['cells_temp_coeff']),
