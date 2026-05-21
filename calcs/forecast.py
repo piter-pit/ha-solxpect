@@ -134,7 +134,10 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
             epochTimeSeconds=int(dt_step.timestamp()),
             ambientTemperature=inputs["ambient_temperature"]
         )
-        results.append((hour_end, energy_wh))
+        results.append((hour_end.isoformat(), energy_wh))
+        logger.debug(f"APPEND | hour_end={hour_end} | energy={energy_wh}")
+        
+    logger.info(f"FORECAST DONE | results_count={len(results)}")
     return results
 
 def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
