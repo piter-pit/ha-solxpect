@@ -1,13 +1,14 @@
 import threading
 import os
 
+from calcs.forecast import fetch_open_meteo_data
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI
 
 # ============================================================
 # CHANGED: scheduler added (keeps control over timing)
 # ============================================================
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
 
 from main import (
     get_zip_file_path,
@@ -162,3 +163,33 @@ def refresh():
         LATEST_DATA = data
 
     return {"status": "updated"}
+
+@app.get("/debug/open-meteo")
+def debug_open_meteo():
+    """
+    Raw Open-Meteo response inspector
+    """
+    zip_path = get_zip_file_path()
+    settings = load_pv_settings_from_zip(zip_path)
+
+    start_dt = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    end_dt = start_dt + timedelta(hours=24)
+
+    df = fetch_open_meteo_data(
+        settings["latitude"],
+        settings["longitude"],
+        start_dt,
+        end_dt
+    )
+
+    if df is None or df.empty:
+        return {
+            "status": "empty",
+            "message": "No data from Open-Meteo"
+        }
+
+    return {
+        "status": "ok",
+        "columns": list(df.columns),
+        "sample": df.head(10).to_dict(orient="records")
+    }
