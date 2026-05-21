@@ -1,6 +1,7 @@
 import threading
 import os
 import logging
+import time
 
 from requests import Request
 from calcs.forecast import fetch_open_meteo_data
@@ -134,6 +135,7 @@ def startup_event():
     # CHANGED: scheduler jobs
     # ============================================================
 
+    logger.debug(f"BEFORE SCHEDULER | LATEST_DATA id={id(LATEST_DATA)}")
     scheduler.add_job(refresh_job, "interval", hours=4)
 
     scheduler.add_job(midnight_job, "cron", hour=0, minute=0)
@@ -144,8 +146,11 @@ def startup_event():
     # ============================================================
     try:
         data = compute_forecast()
+        logger.warning(f"STARTUP: forecast_len={len(data.get('forecast', []))}")
+        
         with LOCK:
             LATEST_DATA = data
+        logger.warning(f"STARTUP: LATEST_DATA SET id={id(LATEST_DATA)}")
         print("Warmup forecast executed")
     except Exception as e:
         print("Warmup error:", e)
@@ -159,13 +164,18 @@ def startup_event():
 @app.get("/forecast")
 def get_forecast():
     with LOCK:
-        return LATEST_DATA
+        logger.warning(f"API CALLED | LATEST_DATA id={id(LATEST_DATA)}")
 
+        if isinstance(LATEST_DATA, dict):
+            logger.warning(f"API forecast len={len(LATEST_DATA.get('forecast', []))}")
+        else:
+            logger.warning("API LATEST_DATA IS EMPTY OR INVALID")
+            
+        return LATEST_DATA
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
 
 # optional: manual refresh trigger
 @app.post("/refresh")
@@ -178,73 +188,3 @@ def refresh():
         LATEST_DATA = data
 
     return {"status": "updated"}
-
-@app.get("/debug/open-meteo")
-def debug_open_meteo():
-    """
-    Raw Open-Meteo response inspector
-    """
-    zip_path = get_zip_file_path()
-    settings = load_pv_settings_from_zip(zip_path)
-
-    start_dt = datetime.now(timezone.utc).replace(
-        minute=0,
-        second=0,
-        microsecond=0
-    )
-
-    end_dt = start_dt + timedelta(hours=24)
-
-    # ============================================================
-    # NEW: build exact Open-Meteo request URL for debugging
-    # ============================================================
-    url = "https://api.open-meteo.com/v1/forecast"
-
-    params = {
-        "latitude": settings["latitude"],
-        "longitude": settings["longitude"],
-        "hourly": "direct_normal_irradiance,diffuse_radiation,shortwave_radiation,temperature_2m",
-        "start": start_dt.strftime("%Y-%m-%dT%H:%M"),
-        "end": end_dt.strftime("%Y-%m-%dT%H:%M"),
-        "timezone": "UTC"
-    }
-
-    full_url = Request(
-        "GET",
-        url,
-        params=params
-    ).prepare().url
-
-    df = fetch_open_meteo_data(
-        settings["latitude"],
-        settings["longitude"],
-        start_dt,
-        end_dt
-    )
-
-    if df is None or df.empty:
-        return {
-            "status": "empty",
-            "message": "No data from Open-Meteo",
-            "request_url": full_url
-        }
-
-    return {
-        "status": "ok",
-
-        # ============================================================
-        # NEW: expose full Open-Meteo request
-        # ============================================================
-        "request_url": full_url,
-
-        "columns": list(df.columns),
-
-        # ============================================================
-        # OPTIONAL: useful debug info
-        # ============================================================
-        "rows": len(df),
-        "first_time": str(df.iloc[0]["time"]),
-        "last_time": str(df.iloc[-1]["time"]),
-
-        "sample": df.head(10).to_dict(orient="records")
-    }
