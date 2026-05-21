@@ -2,6 +2,7 @@ import threading
 import os
 import logging
 
+from requests import Request
 from calcs.forecast import fetch_open_meteo_data
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI
@@ -181,8 +182,33 @@ def debug_open_meteo():
     zip_path = get_zip_file_path()
     settings = load_pv_settings_from_zip(zip_path)
 
-    start_dt = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    start_dt = datetime.now(timezone.utc).replace(
+        minute=0,
+        second=0,
+        microsecond=0
+    )
+
     end_dt = start_dt + timedelta(hours=24)
+
+    # ============================================================
+    # NEW: build exact Open-Meteo request URL for debugging
+    # ============================================================
+    url = "https://api.open-meteo.com/v1/forecast"
+
+    params = {
+        "latitude": settings["latitude"],
+        "longitude": settings["longitude"],
+        "hourly": "direct_normal_irradiance,diffuse_radiation,shortwave_radiation,temperature_2m",
+        "start": start_dt.strftime("%Y-%m-%dT%H:%M"),
+        "end": end_dt.strftime("%Y-%m-%dT%H:%M"),
+        "timezone": "UTC"
+    }
+
+    full_url = Request(
+        "GET",
+        url,
+        params=params
+    ).prepare().url
 
     df = fetch_open_meteo_data(
         settings["latitude"],
@@ -194,11 +220,26 @@ def debug_open_meteo():
     if df is None or df.empty:
         return {
             "status": "empty",
-            "message": "No data from Open-Meteo"
+            "message": "No data from Open-Meteo",
+            "request_url": full_url
         }
 
     return {
         "status": "ok",
+
+        # ============================================================
+        # NEW: expose full Open-Meteo request
+        # ============================================================
+        "request_url": full_url,
+
         "columns": list(df.columns),
+
+        # ============================================================
+        # OPTIONAL: useful debug info
+        # ============================================================
+        "rows": len(df),
+        "first_time": str(df.iloc[0]["time"]),
+        "last_time": str(df.iloc[-1]["time"]),
+
         "sample": df.head(10).to_dict(orient="records")
     }
