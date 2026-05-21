@@ -3,6 +3,10 @@ import zipfile
 import sqlite3
 import tempfile
 import logging
+import time  # ============================================================
+# ✅ NEW: needed for scheduler sleep loop
+# ============================================================
+
 from datetime import datetime, timezone, timedelta
 
 from calcs.SolarPowerPlant import SolarPowerPlant
@@ -74,44 +78,60 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
 
     # ============================================================
-    # ❌ OLD (interactive)
-    # zip_path = prompt_for_zip_file()
-    #
-    # ✅ NEW (Docker-safe)
+    # ⏱️ NEW: scheduler interval (4 hours)
     # ============================================================
-    zip_path = get_zip_file_path()
+    INTERVAL_SECONDS = 4 * 60 * 60  # 4h
 
-    settings = load_pv_settings_from_zip(zip_path)
+    # ============================================================
+    # 🔁 MAIN LOOP (Docker-safe long running process)
+    # ============================================================
+    while True:
+        try:
+            zip_path = get_zip_file_path()
 
-    print("🔍 Settings loaded from ZIP:")
-    for key, value in settings.items():
-        print(f"  {key}: {value}")
+            settings = load_pv_settings_from_zip(zip_path)
 
-    plant_timezone = timezone(timedelta(seconds=int(settings["timezone_seconds"])))
+            print("🔍 Settings loaded from ZIP:")
+            for key, value in settings.items():
+                print(f"  {key}: {value}")
 
-    plant = SolarPowerPlant(
-        albedo=float(settings['albedo']),
-        latitude=float(settings['latitude']),
-        longitude=float(settings['longitude']),
-        cellsMaxPower=float(settings['cells_max_pPower']),
-        cellsArea=float(settings['cells_area']),
-        cellsEfficiency=float(settings['cells_efficiency']),
-        cellsTempCoeff=float(settings['cells_temp_coeff']),
-        diffuseEfficiency=float(settings['diffuse_efficiency']),
-        inverterPowerLimit=float(settings['inverter_power_limit']),
-        inverterEfficiency=float(settings['inverter_efficiency']),
-        isCentralInverter=bool(int(settings['is_central_inverter'])),
-        azimuthAngle=float(settings['azimuth_angle']),
-        tiltAngle=float(settings['tilt_angle']),
-        shadingElevation=[int(x) for x in settings['shading_elevation'].split(',')],
-        shadingOpacity=[int(x) for x in settings['shading_opacity'].split(',')]
-    )
+            plant_timezone = timezone(timedelta(seconds=int(settings["timezone_seconds"])))
 
-    forecast24 = forecast_next_24_hours(
-        plant=plant,
-        city_name=settings['city_name']
-    )
+            plant = SolarPowerPlant(
+                albedo=float(settings['albedo']),
+                latitude=float(settings['latitude']),
+                longitude=float(settings['longitude']),
+                cellsMaxPower=float(settings['cells_max_pPower']),
+                cellsArea=float(settings['cells_area']),
+                cellsEfficiency=float(settings['cells_efficiency']),
+                cellsTempCoeff=float(settings['cells_temp_coeff']),
+                diffuseEfficiency=float(settings['diffuse_efficiency']),
+                inverterPowerLimit=float(settings['inverter_power_limit']),
+                inverterEfficiency=float(settings['inverter_efficiency']),
+                isCentralInverter=bool(int(settings['is_central_inverter'])),
+                azimuthAngle=float(settings['azimuth_angle']),
+                tiltAngle=float(settings['tilt_angle']),
+                shadingElevation=[int(x) for x in settings['shading_elevation'].split(',')],
+                shadingOpacity=[int(x) for x in settings['shading_opacity'].split(',')]
+            )
 
-    for hour_end_utc, energy_wh in forecast24:
-        hour_end_local = hour_end_utc.astimezone(plant_timezone)
-        print(f"{hour_end_local.strftime('%Y-%m-%d %H:%M')} → {energy_wh:.2f} Wh")
+            forecast24 = forecast_next_24_hours(
+                plant=plant,
+                city_name=settings['city_name']
+            )
+
+            for hour_end_utc, energy_wh in forecast24:
+                hour_end_local = hour_end_utc.astimezone(plant_timezone)
+                print(f"{hour_end_local.strftime('%Y-%m-%d %H:%M')} → {energy_wh:.2f} Wh")
+
+        except Exception as e:
+            # ============================================================
+            # ⚠️ NEW: prevents container crash loop
+            # ============================================================
+            print(f"❌ Error in cycle: {e}")
+
+        # ============================================================
+        # ⏱️ SLEEP BETWEEN RUNS (4 hours)
+        # ============================================================
+        print(f"⏳ Sleeping for {INTERVAL_SECONDS/3600} hours...\n")
+        time.sleep(INTERVAL_SECONDS)
