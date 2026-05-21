@@ -8,6 +8,7 @@ from .SolarPowerPlant import SolarPowerPlant
 
 logger = logging.getLogger(__name__)
 
+
 def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -20,19 +21,19 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     }
 
     full_url = requests.Request('GET', url, params=params).prepare().url
-    logger.debug(f"🌐 API Request: {full_url}")
+    logger.debug(f"API Request: {full_url}")
 
     response = requests.get(url, params=params)
     response.raise_for_status()
     data = response.json()
 
-    # Print a summary of the response
-    logger.debug(f"📦 API Response Keys: {list(data.keys())}")
+    logger.debug(f"API Response Keys: {list(data.keys())}")
+
     if "hourly" in data:
-        logger.debug(f"📊 Hourly Data Keys: {list(data['hourly'].keys())}")
-        logger.debug(f"🕒 Sample Times: {data['hourly']['time'][:3]} ...")
+        logger.debug(f"Hourly Data Keys: {list(data['hourly'].keys())}")
+        logger.debug(f"Sample Times: {data['hourly']['time'][:3]} ...")
     else:
-        logger.warning("⚠️ No 'hourly' field in API response")
+        logger.warning("No 'hourly' field in API response")
 
     df = pd.DataFrame(data["hourly"])
     df["time"] = pd.to_datetime(df["time"], utc=True)
@@ -40,10 +41,11 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
 
 
 def prepare_weather(dt, meteo_df):
-    # Select weather data for the hour Note: For 12:40 the weather data from 12:00 is used
+    # Select weather data for exact hour
     row = meteo_df.loc[meteo_df["time"] == dt]
+
     if row.empty:
-        logger.warning(f"No weather data found for hour {dt_hour}")
+        logger.warning(f"No weather data found for hour {dt}")  # FIXED BUG
         return None
 
     return {
@@ -53,24 +55,45 @@ def prepare_weather(dt, meteo_df):
         "ambient_temperature": row["temperature_2m"].values[0]
     }
 
-def forecast_next_24_hours(plant: SolarPowerPlant, city_name: str):
-    start_dt = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    end_dt = start_dt + timedelta(hours=24)
+
+# ============================================================
+# CHANGED FUNCTION NAME (was: forecast_next_24_hours)
+# ============================================================
+def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
+
+    # ============================================================
+    # NEW: expanded time window (today + tomorrow)
+    # ============================================================
+    start_dt = datetime.now(timezone.utc).replace(
+        minute=0, second=0, microsecond=0
+    )
+
+    # CHANGED: was +24h, now +48h
+    end_dt = start_dt + timedelta(hours=48)
+
     latitude = plant.latitude
-    longitude = plant.longitude 
+    longitude = plant.longitude
+
     meteo_df = fetch_open_meteo_data(latitude, longitude, start_dt, end_dt)
 
-    logger.debug(f"📍 Forecasting for {city_name} ({latitude}, {longitude})")
+    logger.debug(f"Forecasting for {city_name} ({latitude}, {longitude})")
+
     results = []
 
-    for hour in range(24):
+    # ============================================================
+    # CHANGED: 48 hours instead of 24
+    # ============================================================
+    for hour in range(48):
+
         hour_start = start_dt + timedelta(hours=hour)
+
         energy_wh = 0.0
 
-        logger.info(f"⏱️ Hour: {hour_start.strftime('%Y-%m-%d %H:%M')}")
+        logger.info(f"Hour: {hour_start.strftime('%Y-%m-%d %H:%M')}")
 
-        dt_step = hour_start + timedelta(minutes=30) #Immitate solXpect implementataion
+        dt_step = hour_start + timedelta(minutes=30)
         hour_end = hour_start + timedelta(hours=1)
+
         inputs = prepare_weather(hour_end, meteo_df)
 
         if inputs is None:
@@ -84,10 +107,13 @@ def forecast_next_24_hours(plant: SolarPowerPlant, city_name: str):
             epochTimeSeconds=int(dt_step.timestamp()),
             ambientTemperature=inputs["ambient_temperature"]
         )
+
         results.append((hour_end, energy_wh))
+
     return results
-   
-#Function no longer needed...
+
+
+# Function no longer needed...
 def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
     """
     Applies azimuth-dependent shading logic.
@@ -103,14 +129,15 @@ def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
     if elevation_deg < threshold:
         factor = 1.0 - opacity
         logger.debug(
-            f"⛅ Shading applied: azimuth={azimuth_deg:.1f}° → bin={bin_index}, "
-            f"elevation={elevation_deg:.1f}° < threshold={threshold:.1f}°, "
-            f"opacity={opacity:.1f}%, factor={factor:.2f}"
+            f"Shading applied: azimuth={azimuth_deg:.1f}°, "
+            f"bin={bin_index}, elevation={elevation_deg:.1f}°, "
+            f"threshold={threshold:.1f}°, opacity={opacity:.1f}, factor={factor:.2f}"
         )
         return factor
     else:
         logger.debug(
-            f"☀️ No shading: azimuth={azimuth_deg:.1f}° → bin={bin_index}, "
-            f"elevation={elevation_deg:.1f}° ≥ threshold={threshold:.1f}°"
+            f"No shading: azimuth={azimuth_deg:.1f}°, "
+            f"bin={bin_index}, elevation={elevation_deg:.1f}°, "
+            f"threshold={threshold:.1f}°"
         )
         return 1.0
