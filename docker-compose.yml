@@ -1,0 +1,10 @@
+services:
+  solxpect:
+    image: ghcr.io/piter-pit/solxpect:latest
+
+    container_name: solxpect
+
+    restart: unless-stopped
+
+    volumes:
+      - ./data:/app/data
