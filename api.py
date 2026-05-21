@@ -131,9 +131,7 @@ def midnight_job():
 # ============================================================
 @app.on_event("startup")
 def startup_event():
-    # ============================================================
-    # CHANGED: scheduler jobs
-    # ============================================================
+    global LATEST_DATA
 
     logger.debug(f"BEFORE SCHEDULER | LATEST_DATA id={id(LATEST_DATA)}")
     scheduler.add_job(refresh_job, "interval", hours=4)
