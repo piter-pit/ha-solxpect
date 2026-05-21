@@ -8,13 +8,30 @@ from datetime import datetime, timezone, timedelta
 from calcs.SolarPowerPlant import SolarPowerPlant
 from calcs.forecast import forecast_next_24_hours
 
-def prompt_for_zip_file():
-    path = input("Enter path to ZIP file containing SQLITE.db: ").strip()
-    #For now just use fixed path
-    #path = r"C:\Users\userId\Downloads\solXpect.zip"
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"File not found: {path}")
-    return path
+
+# ============================================================
+# ❌ REMOVED INTERACTIVE INPUT (Docker incompatible)
+# ============================================================
+# def prompt_for_zip_file():
+#     path = input("Enter path to ZIP file containing SQLITE.db: ").strip()
+#     #For now just use fixed path
+#     #path = r"C:\Users\userId\Downloads\solXpect.zip"
+#     if not os.path.isfile(path):
+#         raise FileNotFoundError(f"File not found: {path}")
+#     return path
+
+
+# ============================================================
+# ✅ NEW: Docker-friendly file resolution
+# ============================================================
+def get_zip_file_path():
+    """
+    Priority:
+    1. ENV variable (best for Docker flexibility)
+    2. default mounted path (/app/data)
+    """
+    return os.getenv("ZIP_PATH", "/app/data/solXpect.zip")
+
 
 def load_pv_settings_from_zip(zip_path):
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
@@ -47,20 +64,31 @@ def load_pv_settings_from_zip(zip_path):
 
             return dict(zip(columns, selected_row))
 
+
 # 🔁 Run the full workflow
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.WARNING,  # 👈 This enables DEBUG messages
+        level=logging.WARNING,
         format="%(levelname)s:%(name)s:%(message)s"
     )
     logger = logging.getLogger(__name__)
 
-    zip_path = prompt_for_zip_file()
+    # ============================================================
+    # ❌ OLD (interactive)
+    # zip_path = prompt_for_zip_file()
+    #
+    # ✅ NEW (Docker-safe)
+    # ============================================================
+    zip_path = get_zip_file_path()
+
     settings = load_pv_settings_from_zip(zip_path)
+
     print("🔍 Settings loaded from ZIP:")
     for key, value in settings.items():
         print(f"  {key}: {value}")
+
     plant_timezone = timezone(timedelta(seconds=int(settings["timezone_seconds"])))
+
     plant = SolarPowerPlant(
         albedo=float(settings['albedo']),
         latitude=float(settings['latitude']),
@@ -83,6 +111,7 @@ if __name__ == "__main__":
         plant=plant,
         city_name=settings['city_name']
     )
+
     for hour_end_utc, energy_wh in forecast24:
         hour_end_local = hour_end_utc.astimezone(plant_timezone)
         print(f"{hour_end_local.strftime('%Y-%m-%d %H:%M')} → {energy_wh:.2f} Wh")
