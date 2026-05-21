@@ -102,7 +102,7 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
         minute=0, second=0, microsecond=0
     )
 
-    end_dt = start_dt + timedelta(hours=48)
+    end_dt = start_dt + timedelta(days=3)
 
     latitude = plant.latitude
     longitude = plant.longitude
