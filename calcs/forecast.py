@@ -117,6 +117,16 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
             logger.warning(f"{dt_step.strftime('%Y-%m-%d %H:%M')} – No data available")
             continue
 
+        logger.info(
+            f"DEBUG getPower INPUT | "
+            f"time={hour_start.isoformat()} | "
+            f"epoch={int(dt_step.timestamp())} | "
+            f"DNI={inputs['solar_power_normal']} | "
+            f"diffuse={inputs['solar_power_diffuse']} | "
+            f"sw={inputs['shortwave_radiation']} | "
+            f"temp={inputs['ambient_temperature']}"
+        )
+        
         energy_wh = plant.getPower(
             solarPowerNormal=inputs["solar_power_normal"],
             solarPowerDiffuse=inputs["solar_power_diffuse"],
