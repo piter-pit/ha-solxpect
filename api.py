@@ -24,7 +24,7 @@ from calcs.SolarPowerPlant import SolarPowerPlant
 # CHANGED: updated forecast function (today + tomorrow range)
 # ============================================================
 from calcs.forecast import forecast_today_and_tomorrow
-
+logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # ============================================================
