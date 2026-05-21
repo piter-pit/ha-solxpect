@@ -68,7 +68,15 @@ def prepare_weather(dt, meteo_df):
     # ============================================================
     # CHANGED: FIX critical bug (exact match replaced with nearest hour)
     # ============================================================
-    dt = pd.Timestamp(dt, tz="UTC")
+    # ============================================================
+    # FIX: avoid double timezone assignment (pandas limitation)
+    # ============================================================
+    dt = pd.Timestamp(dt)
+
+    if dt.tzinfo is None:
+        dt = dt.tz_localize("UTC")
+    else:
+        dt = dt.tz_convert("UTC")
 
     idx = (meteo_df["time"] - dt).abs().idxmin()
     row = meteo_df.loc[idx]
