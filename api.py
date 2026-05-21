@@ -10,7 +10,11 @@ from main import (
 )
 
 from calcs.SolarPowerPlant import SolarPowerPlant
-from calcs.forecast import forecast_next_24_hours
+
+# ============================================================
+# CHANGED: function name update (was forecast_next_24_hours)
+# ============================================================
+from calcs.forecast import forecast_today_and_tomorrow
 
 app = FastAPI()
 
@@ -45,7 +49,10 @@ def compute_forecast():
         shadingOpacity=[int(x) for x in settings['shading_opacity'].split(',')]
     )
 
-    forecast = forecast_next_24_hours(
+    # ============================================================
+    # CHANGED: forecast range updated (today + tomorrow)
+    # ============================================================
+    forecast = forecast_today_and_tomorrow(
         plant=plant,
         city_name=settings['city_name']
     )
