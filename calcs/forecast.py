@@ -14,7 +14,12 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "hourly": "direct_normal_irradiance,diffuse_radiation,shortwave_radiation,temperature_2m",
+        "hourly": (
+            "direct_normal_irradiance,"
+            "diffuse_radiation,"
+            "shortwave_radiation,"
+            "temperature_2m"
+        ),
         "start": start_dt.strftime("%Y-%m-%dT%H:%M"),
         "end": end_dt.strftime("%Y-%m-%dT%H:%M"),
         "timezone": "UTC"
@@ -24,7 +29,14 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     logger.debug(f"API Request: {full_url}")
 
     response = requests.get(url, params=params)
-    response.raise_for_status()
+
+    # ============================================================
+    # CHANGED: better visibility when API fails (prevents silent empty forecast)
+    # ============================================================
+    if response.status_code != 200:
+        logger.error(f"Open-Meteo error {response.status_code}: {response.text}")
+        response.raise_for_status()
+
     data = response.json()
 
     logger.debug(f"API Response Keys: {list(data.keys())}")
@@ -34,25 +46,42 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
         logger.debug(f"Sample Times: {data['hourly']['time'][:3]} ...")
     else:
         logger.warning("No 'hourly' field in API response")
+        return pd.DataFrame()
 
     df = pd.DataFrame(data["hourly"])
+
+    # ============================================================
+    # CHANGED: ensure strict UTC datetime alignment
+    # ============================================================
     df["time"] = pd.to_datetime(df["time"], utc=True)
+    df = df.sort_values("time").reset_index(drop=True)
+
     return df
 
 
 def prepare_weather(dt, meteo_df):
-    # Select weather data for exact hour
-    row = meteo_df.loc[meteo_df["time"] == dt]
 
-    if row.empty:
-        logger.warning(f"No weather data found for hour {dt}")  # FIXED BUG
+    if meteo_df is None or meteo_df.empty:
+        logger.warning("Empty meteo dataframe")
+        return None
+
+    # ============================================================
+    # CHANGED: FIX critical bug (exact match replaced with nearest hour)
+    # ============================================================
+    dt = pd.Timestamp(dt, tz="UTC")
+
+    idx = (meteo_df["time"] - dt).abs().idxmin()
+    row = meteo_df.loc[idx]
+
+    if row is None or pd.isna(row["temperature_2m"]):
+        logger.warning(f"No valid weather data for hour {dt}")
         return None
 
     return {
-        "solar_power_normal": row["direct_normal_irradiance"].values[0],
-        "solar_power_diffuse": row["diffuse_radiation"].values[0],
-        "shortwave_radiation": row["shortwave_radiation"].values[0],
-        "ambient_temperature": row["temperature_2m"].values[0]
+        "solar_power_normal": row["direct_normal_irradiance"],
+        "solar_power_diffuse": row["diffuse_radiation"],
+        "shortwave_radiation": row["shortwave_radiation"],
+        "ambient_temperature": row["temperature_2m"]
     }
 
 
@@ -61,14 +90,10 @@ def prepare_weather(dt, meteo_df):
 # ============================================================
 def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
-    # ============================================================
-    # NEW: expanded time window (today + tomorrow)
-    # ============================================================
     start_dt = datetime.now(timezone.utc).replace(
         minute=0, second=0, microsecond=0
     )
 
-    # CHANGED: was +24h, now +48h
     end_dt = start_dt + timedelta(hours=48)
 
     latitude = plant.latitude
@@ -78,16 +103,18 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
     logger.debug(f"Forecasting for {city_name} ({latitude}, {longitude})")
 
+    # ============================================================
+    # CHANGED: debug guard (prevents silent empty forecast)
+    # ============================================================
+    if meteo_df.empty:
+        logger.error("Meteo dataframe is empty - Open-Meteo returned no data")
+        return []
+
     results = []
 
-    # ============================================================
-    # CHANGED: 48 hours instead of 24
-    # ============================================================
     for hour in range(48):
 
         hour_start = start_dt + timedelta(hours=hour)
-
-        energy_wh = 0.0
 
         logger.info(f"Hour: {hour_start.strftime('%Y-%m-%d %H:%M')}")
 
@@ -113,15 +140,8 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     return results
 
 
-# Function no longer needed...
 def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
-    """
-    Applies azimuth-dependent shading logic.
 
-    thresholds: list of elevation thresholds per azimuth bin
-    opacities: list of shading percentages per azimuth bin
-    Assumes 36 bins covering 0–360° in 10° increments.
-    """
     bin_index = int(azimuth_deg // 10) % 36
     threshold = thresholds[bin_index]
     opacity = opacities[bin_index]
