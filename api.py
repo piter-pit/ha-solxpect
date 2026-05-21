@@ -46,6 +46,7 @@ LOCK = threading.Lock()
 # CORE COMPUTE FUNCTION (reused by API + scheduler)
 # ============================================================
 def compute_forecast():
+    logger.debug("COMPUTE START")
     zip_path = get_zip_file_path()
     settings = load_pv_settings_from_zip(zip_path)
 
@@ -71,17 +72,21 @@ def compute_forecast():
         plant=plant,
         city_name=settings['city_name']
     )
+    logger.debug(f"COMPUTE FORECAST LEN = {len(forecast)}")
 
-    return {
+    payload = {
         "plant": settings,
         "forecast": [
-            {
-                "time": t.isoformat(),
-                "wh": wh
-            }
+            {"time": t.isoformat(), "wh": wh}
             for t, wh in forecast
         ]
     }
+
+    logger.debug(f"COMPUTE RETURN KEYS = {payload.keys()}")
+    logger.debug(f"COMPUTE FORECAST ITEMS = {len(payload['forecast'])}")
+    logger.debug(f"COMPUTE RETURN FINAL SAMPLE = {payload['forecast'][:2]}")
+
+    return payload
 
 
 # ============================================================
