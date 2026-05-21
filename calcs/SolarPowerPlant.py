@@ -1,6 +1,9 @@
 import math
 import pvlib
 from datetime import datetime, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SolarPowerPlant: 
         #Class should reproduce the java class by the same name in solXpect:
@@ -26,31 +29,30 @@ class SolarPowerPlant:
         self.shadingOpacity = shadingOpacity  # list of 36 opacity values (0–100) one per azimuth bin
 
     def getPower(self, solarPowerNormal, solarPowerDiffuse, shortwaveRadiation, epochTimeSeconds, ambientTemperature):
-	    # Inputs:
+        # Inputs:
         # solarPowerNormal: W/m², direct irradiance normal to sun
         # solarPowerDiffuse: W/m², diffuse irradiance
         # shortwaveRadiation: W/m², total shortwave (used for albedo)
-        # epochTimeSeconds: Unix timestamp, When you want to calculate the Energy between 9am and 10am you should give the function 9:30am
+        # epochTimeSeconds: Unix timestamp
         # ambientTemperature: °C
-        # Convert timestamp to UTC datetime
 
-		logger.debug(
-    		f"getPower START | epoch={epochTimeSeconds} | "
-    		f"DNI={solarPowerNormal} | diffuse={solarPowerDiffuse} | "
-    		f"sw={shortwaveRadiation} | temp={ambientTemperature}"
-		)
-		
+        logger.debug(
+            f"getPower START | epoch={epochTimeSeconds} | "
+            f"DNI={solarPowerNormal} | diffuse={solarPowerDiffuse} | "
+            f"sw={shortwaveRadiation} | temp={ambientTemperature}"
+        )
+
         i = datetime.fromtimestamp(epochTimeSeconds, tz=timezone.utc)
 
         # Use pvlib to calculate solar position
         solarPosition = pvlib.solarposition.get_solarposition(i, self.latitude, self.longitude)
 
-		logger.debug(f"pvlib output rows={len(solarPosition)}")
+        logger.debug(f"pvlib output rows={len(solarPosition)}")
 
         solarAzimuth = solarPosition['azimuth'].iloc[0]  # degrees
         solarElevation = solarPosition['elevation'].iloc[0]  # degrees
 
-		logger.debug(f"sun pos | az={solarAzimuth} | el={solarElevation}")
+        logger.debug(f"sun pos | az={solarAzimuth} | el={solarElevation}")
 
         # Calculate sun direction vector
         directionSun = [
@@ -70,14 +72,13 @@ class SolarPowerPlant:
         efficiency = 0.0
         if solarPowerNormal > 0:
             efficiency = sum(directionSun[j] * normalPanel[j] for j in range(3))
-            efficiency = max(0.0, efficiency)  # set to 0 if sun is behind panel
+            efficiency = max(0.0, efficiency)
 
             if efficiency > 0:
                 shFactor = 0.0
 
-                # Calculate shading in 6 intervals per hour -> 10min steps xx:05 / xx:15 / xx:25 / xx:35 / xx:45 / xx:55
                 numSteps = 6
-                interval = 3600 // numSteps  # seconds
+                interval = 3600 // numSteps
 
                 for j in range(numSteps):
                     shEpoch = epochTimeSeconds - ((numSteps - 1) * interval // 2) + j * interval
@@ -87,54 +88,46 @@ class SolarPowerPlant:
                     shSolarAzimuth = shPosition['azimuth'].iloc[0]
                     shSolarElevation = shPosition['elevation'].iloc[0]
 
-                    # Shading values are provided in 10 degree ranges -> total of 36 ranges
                     shadingIndex = ((((int(round((shSolarAzimuth + 5) / 10))) - 1) % 36 + 36) % 36)
 
                     if self.shadingElevation[shadingIndex] > shSolarElevation:
                         shFactor += (100 - self.shadingOpacity[shadingIndex]) / (numSteps * 100.0)
                     else:
-                        shFactor += 100 / (numSteps * 100.0) #numSteps iterations with no shading give 100%
+                        shFactor += 100 / (numSteps * 100.0)
 
-                efficiency *= shFactor  # apply shading factor
+                efficiency *= shFactor
 
-        # Calculate reflected radiation — flat plate equivalent
+        # Calculate reflected radiation
         tiltRad = math.radians(self.tiltAngle)
         reflected = shortwaveRadiation * (0.5 - 0.5 * math.cos(tiltRad)) * self.albedo
 
-        # Total irradiance on cell (W/m²)
+        # Total irradiance on cell
         totalIrradianceOnCell = (
             solarPowerNormal * efficiency +
             solarPowerDiffuse * self.diffuseEfficiency +
             reflected
         )
 
-        # Estimate cell temperature using Ross modelhttps://www.researchgate.net/publication/275438802_Thermal_effects_of_the_extended_holographic_regions_for_holographic_planar_concentrator
-        #implementation matches solXpect
         cellTemperature = ambientTemperature + 0.0342 * totalIrradianceOnCell
 
-        # Calculate DC power (W)
         if self.cellsEfficiency != 0 and self.cellsArea != 0:
             dcPower = totalIrradianceOnCell * (1 + (cellTemperature - 25) * self.cellsTempCoeff) * self.cellsEfficiency * self.cellsArea
-        else: #assume cellMaxPower is defined at 1000W/sqm
+        else:
             dcPower = totalIrradianceOnCell / 1000 * (1 + (cellTemperature - 25) * self.cellsTempCoeff) * self.cellsMaxPower
 
-        # Convert to AC power (W)
         if not self.isCentralInverter:
             acPower = min(dcPower * self.inverterEfficiency, self.inverterPowerLimit)
         else:
-            acPower = dcPower * self.inverterEfficiency  # no clipping for central inverter
+            acPower = dcPower * self.inverterEfficiency
 
-		logger.debug(f"getPower RESULT | acPower={acPower}")
+        logger.debug(f"getPower RESULT | acPower={acPower}")
 
         return float(acPower)
 
     @staticmethod
     def calcDiffuseEfficiency(tilt):
-        # Returns % efficiency for diffuse light based on tilt angle
         return int(50 + 50 * math.cos(math.radians(tilt)))
 
     @staticmethod
     def calcCellTemperature(ambientTemperature, totalIrradiance):
-        #Ross model: https://www.researchgate.net/publication/275438802_Thermal_effects_of_the_extended_holographic_regions_for_holographic_planar_concentrator
-        #assuming "not so well cooled" : 0.0342
         return ambientTemperature + 0.0342 * totalIrradiance
