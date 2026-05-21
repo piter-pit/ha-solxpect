@@ -1,5 +1,6 @@
 import threading
 import os
+import logging
 
 from calcs.forecast import fetch_open_meteo_data
 from datetime import datetime, timedelta, timezone
@@ -23,6 +24,14 @@ from calcs.SolarPowerPlant import SolarPowerPlant
 from calcs.forecast import forecast_today_and_tomorrow
 
 app = FastAPI()
+
+# ============================================================
+# NEW: enable DEBUG logging globally
+# ============================================================
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 
 LATEST_DATA = {}
 LOCK = threading.Lock()
