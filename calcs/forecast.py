@@ -30,29 +30,18 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
 
     response = requests.get(url, params=params)
 
-    # ============================================================
-    # CHANGED: better visibility when API fails (prevents silent empty forecast)
-    # ============================================================
     if response.status_code != 200:
         logger.error(f"Open-Meteo error {response.status_code}: {response.text}")
         response.raise_for_status()
 
     data = response.json()
 
-    logger.debug(f"API Response Keys: {list(data.keys())}")
-
-    if "hourly" in data:
-        logger.debug(f"Hourly Data Keys: {list(data['hourly'].keys())}")
-        logger.debug(f"Sample Times: {data['hourly']['time'][:3]} ...")
-    else:
-        logger.warning("No 'hourly' field in API response")
+    if "hourly" not in data:
+        logger.warning("No hourly field in response")
         return pd.DataFrame()
 
     df = pd.DataFrame(data["hourly"])
 
-    # ============================================================
-    # CHANGED: ensure strict UTC datetime alignment
-    # ============================================================
     df["time"] = pd.to_datetime(df["time"], utc=True)
     df = df.sort_values("time").reset_index(drop=True)
 
@@ -65,24 +54,24 @@ def prepare_weather(dt, meteo_df):
         logger.warning("Empty meteo dataframe")
         return None
 
-    # ============================================================
-    # CHANGED: FIX critical bug (exact match replaced with nearest hour)
-    # ============================================================
-    # ============================================================
-    # FIX: avoid double timezone assignment (pandas limitation)
-    # ============================================================
+    # FIX 1: unified timestamp normalization
     dt = pd.Timestamp(dt)
-
     if dt.tzinfo is None:
         dt = dt.tz_localize("UTC")
     else:
         dt = dt.tz_convert("UTC")
 
-    idx = (meteo_df["time"] - dt).abs().idxmin()
+    # FIX 2: safer nearest-match (no idxmin drift issues)
+    deltas = (meteo_df["time"] - dt).abs()
+
+    if deltas.empty:
+        return None
+
+    idx = deltas.sort_values().index[0]
     row = meteo_df.loc[idx]
 
-    if row is None or pd.isna(row["temperature_2m"]):
-        logger.warning(f"No valid weather data for hour {dt}")
+    if pd.isna(row["temperature_2m"]):
+        logger.warning(f"No valid weather for {dt}")
         return None
 
     return {
@@ -93,56 +82,51 @@ def prepare_weather(dt, meteo_df):
     }
 
 
-# ============================================================
-# CHANGED FUNCTION NAME (was: forecast_next_24_hours)
-# ============================================================
 def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
     now = datetime.now(timezone.utc)
 
+    # FIX 3: correct day alignment (stable full-day window)
     start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # FIX 4: keep 3 days window (OK)
     end_dt = start_dt + timedelta(days=3)
 
-    latitude = plant.latitude
-    longitude = plant.longitude
+    meteo_df = fetch_open_meteo_data(
+        plant.latitude,
+        plant.longitude,
+        start_dt,
+        end_dt
+    )
 
-    meteo_df = fetch_open_meteo_data(latitude, longitude, start_dt, end_dt)
-
-    logger.debug(f"Forecasting for {city_name} ({latitude}, {longitude})")
-
-    # ============================================================
-    # CHANGED: debug guard (prevents silent empty forecast)
-    # ============================================================
     if meteo_df.empty:
-        logger.error("Meteo dataframe is empty - Open-Meteo returned no data")
+        logger.error("Empty meteo dataframe")
         return []
 
     results = []
 
     for hour in range(48):
 
-        hour_start = start_dt + timedelta(hours=hour)
+        # FIX 5: ONE consistent timestamp per iteration
+        dt = start_dt + timedelta(hours=hour)
 
-        logger.info(f"Hour: {hour_start.strftime('%Y-%m-%d %H:%M')}")
+        logger.info(f"Hour: {dt.strftime('%Y-%m-%d %H:%M')}")
 
-        dt_step = hour_start + timedelta(minutes=30)
-        hour_end = hour_start + timedelta(hours=1)
-
-        inputs = prepare_weather(hour_end, meteo_df)
+        inputs = prepare_weather(dt, meteo_df)
 
         if inputs is None:
-            logger.warning(f"{dt_step.strftime('%Y-%m-%d %H:%M')} – No data available")
+            logger.warning(f"No data for {dt}")
             continue
 
         energy_wh = plant.getPower(
             solarPowerNormal=inputs["solar_power_normal"],
             solarPowerDiffuse=inputs["solar_power_diffuse"],
             shortwaveRadiation=inputs["shortwave_radiation"],
-            epochTimeSeconds=int(dt_step.timestamp()),
+            epochTimeSeconds=int(dt.timestamp()),
             ambientTemperature=inputs["ambient_temperature"]
         )
 
-        results.append((hour_end, energy_wh))
+        results.append((dt, energy_wh))
 
     return results
 
@@ -154,17 +138,6 @@ def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
     opacity = opacities[bin_index]
 
     if elevation_deg < threshold:
-        factor = 1.0 - opacity
-        logger.debug(
-            f"Shading applied: azimuth={azimuth_deg:.1f}°, "
-            f"bin={bin_index}, elevation={elevation_deg:.1f}°, "
-            f"threshold={threshold:.1f}°, opacity={opacity:.1f}, factor={factor:.2f}"
-        )
-        return factor
+        return 1.0 - opacity
     else:
-        logger.debug(
-            f"No shading: azimuth={azimuth_deg:.1f}°, "
-            f"bin={bin_index}, elevation={elevation_deg:.1f}°, "
-            f"threshold={threshold:.1f}°"
-        )
         return 1.0
