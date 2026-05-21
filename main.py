@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import logging
 import time  # ============================================================
-# ✅ NEW: needed for scheduler sleep loop
+# NEW: scheduler sleep
 # ============================================================
 
 from datetime import datetime, timezone, timedelta
@@ -14,7 +14,7 @@ from calcs.forecast import forecast_next_24_hours
 
 
 # ============================================================
-# ❌ REMOVED INTERACTIVE INPUT (Docker incompatible)
+# REMOVED INTERACTIVE INPUT (Docker incompatible)
 # ============================================================
 # def prompt_for_zip_file():
 #     path = input("Enter path to ZIP file containing SQLITE.db: ").strip()
@@ -26,7 +26,7 @@ from calcs.forecast import forecast_next_24_hours
 
 
 # ============================================================
-# ✅ NEW: Docker-friendly file resolution
+# NEW: Docker-friendly file resolution
 # ============================================================
 def get_zip_file_path():
     """
@@ -60,16 +60,19 @@ def load_pv_settings_from_zip(zip_path):
             if len(rows) == 1:
                 selected_row = rows[0]
             else:
-                print("Multiple PV plant configurations found:")
+                print("Multiple PV plant configurations found:", flush=True)
                 for i, row in enumerate(rows):
-                    print(f"[{i}] city_name: {row[3]}, rank: {row[2]}")
-                index = int(input("Select row index to use: "))
+                    print(f"[{i}] city_name: {row[3]}, rank: {row[2]}", flush=True)
+
+                index = int(input("Select row index to use: "))  # WARNING: still interactive fallback
                 selected_row = rows[index]
 
             return dict(zip(columns, selected_row))
 
 
-# 🔁 Run the full workflow
+# ============================================================
+# MAIN
+# ============================================================
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.WARNING,
@@ -77,23 +80,21 @@ if __name__ == "__main__":
     )
     logger = logging.getLogger(__name__)
 
-    # ============================================================
-    # ⏱️ NEW: scheduler interval (4 hours)
-    # ============================================================
-    INTERVAL_SECONDS = 4 * 60 * 60  # 4h
+    # NEW: explicit startup signal (debug visibility)
+    print("Application started", flush=True)
 
-    # ============================================================
-    # 🔁 MAIN LOOP (Docker-safe long running process)
-    # ============================================================
+    # scheduler interval (4 hours)
+    INTERVAL_SECONDS = 4 * 60 * 60
+
     while True:
         try:
             zip_path = get_zip_file_path()
 
             settings = load_pv_settings_from_zip(zip_path)
 
-            print("🔍 Settings loaded from ZIP:")
+            print("Settings loaded from ZIP:", flush=True)
             for key, value in settings.items():
-                print(f"  {key}: {value}")
+                print(f"{key}: {value}", flush=True)
 
             plant_timezone = timezone(timedelta(seconds=int(settings["timezone_seconds"])))
 
@@ -122,16 +123,16 @@ if __name__ == "__main__":
 
             for hour_end_utc, energy_wh in forecast24:
                 hour_end_local = hour_end_utc.astimezone(plant_timezone)
-                print(f"{hour_end_local.strftime('%Y-%m-%d %H:%M')} → {energy_wh:.2f} Wh")
+                print(
+                    f"{hour_end_local.strftime('%Y-%m-%d %H:%M')} → {energy_wh:.2f} Wh",
+                    flush=True
+                )
+
+            print("Cycle completed successfully", flush=True)
 
         except Exception as e:
-            # ============================================================
-            # ⚠️ NEW: prevents container crash loop
-            # ============================================================
-            print(f"❌ Error in cycle: {e}")
+            # keeps container alive even if API/ZIP fails
+            print(f"Error in cycle: {e}", flush=True)
 
-        # ============================================================
-        # ⏱️ SLEEP BETWEEN RUNS (4 hours)
-        # ============================================================
-        print(f"⏳ Sleeping for {INTERVAL_SECONDS/3600} hours...\n")
+        print(f"Sleeping for {INTERVAL_SECONDS / 3600} hours", flush=True)
         time.sleep(INTERVAL_SECONDS)
