@@ -1,8 +1,13 @@
 import threading
-import time
 import os
 
 from fastapi import FastAPI
+
+# ============================================================
+# CHANGED: scheduler added (replaces manual worker loop)
+# ============================================================
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
 
 from main import (
     get_zip_file_path,
@@ -21,11 +26,14 @@ app = FastAPI()
 LATEST_DATA = {}
 LOCK = threading.Lock()
 
-INTERVAL_SECONDS = 4 * 60 * 60
+# ============================================================
+# REMOVED: manual sleep-based interval (no longer used)
+# INTERVAL_SECONDS = 4 * 60 * 60
+# ============================================================
 
 
 # ============================================================
-# CORE COMPUTE FUNCTION (reused by API + background worker)
+# CORE COMPUTE FUNCTION (reused by API + scheduler)
 # ============================================================
 def compute_forecast():
     zip_path = get_zip_file_path()
@@ -50,7 +58,7 @@ def compute_forecast():
     )
 
     # ============================================================
-    # CHANGED: forecast range updated (today + tomorrow)
+    # CHANGED: forecast now covers today + tomorrow
     # ============================================================
     forecast = forecast_today_and_tomorrow(
         plant=plant,
@@ -70,33 +78,59 @@ def compute_forecast():
 
 
 # ============================================================
-# BACKGROUND WORKER (updates data every 4h)
+# SCHEDULER FUNCTIONS (replaces worker loop)
 # ============================================================
-def worker():
+scheduler = BackgroundScheduler()
+
+
+def refresh_job():
+    """
+    Runs every 4 hours
+    """
     global LATEST_DATA
 
-    while True:
-        try:
-            data = compute_forecast()
+    try:
+        data = compute_forecast()
 
-            with LOCK:
-                LATEST_DATA = data
+        with LOCK:
+            LATEST_DATA = data
 
-            print("Forecast updated")
+        print("Periodic refresh executed")
 
-        except Exception as e:
-            print("Worker error:", e)
+    except Exception as e:
+        print("Periodic refresh error:", e)
 
-        time.sleep(INTERVAL_SECONDS)
+
+def midnight_job():
+    """
+    Runs every day at 00:00 (full reset of daily forecast)
+    """
+    global LATEST_DATA
+
+    try:
+        data = compute_forecast()
+
+        with LOCK:
+            LATEST_DATA = data
+
+        print("Midnight refresh executed")
+
+    except Exception as e:
+        print("Midnight refresh error:", e)
 
 
 # ============================================================
-# STARTUP HOOK
+# STARTUP HOOK (scheduler init)
 # ============================================================
 @app.on_event("startup")
 def startup_event():
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
+    # every 4 hours
+    scheduler.add_job(refresh_job, "interval", hours=4)
+
+    # daily reset at midnight
+    scheduler.add_job(midnight_job, "cron", hour=0, minute=0)
+
+    scheduler.start()
 
 
 # ============================================================
