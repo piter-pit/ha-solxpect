@@ -54,21 +54,25 @@ def prepare_weather(dt, meteo_df):
         logger.warning("Empty meteo dataframe")
         return None
 
-    # FIX 1: unified timestamp normalization
+    # FIX 1: unified timestamp normalization (UTC consistency)
     dt = pd.Timestamp(dt)
     if dt.tzinfo is None:
         dt = dt.tz_localize("UTC")
     else:
         dt = dt.tz_convert("UTC")
 
-    # FIX 2: safer nearest-match (no idxmin drift issues)
-    deltas = (meteo_df["time"] - dt).abs()
+    # ============================================================
+    # FIX 2 (CRITICAL): remove nearest-match logic
+    # Reason: it caused wrong hour mapping and silent data loss
+    # ============================================================
 
-    if deltas.empty:
+    row = meteo_df[meteo_df["time"] == dt]
+
+    if row.empty:
+        logger.warning(f"No exact match for {dt}")
         return None
 
-    idx = deltas.sort_values().index[0]
-    row = meteo_df.loc[idx]
+    row = row.iloc[0]
 
     if pd.isna(row["temperature_2m"]):
         logger.warning(f"No valid weather for {dt}")
@@ -105,10 +109,11 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
     results = []
 
-    for hour in range(48):
-
-        # FIX 5: ONE consistent timestamp per iteration
-        dt = start_dt + timedelta(hours=hour)
+    # ============================================================
+    # FIX 5 (CRITICAL): iterate over REAL Open-Meteo timestamps
+    # instead of synthetic hourly generator
+    # ============================================================
+    for dt in meteo_df["time"]:
 
         logger.info(f"Hour: {dt.strftime('%Y-%m-%d %H:%M')}")
 
