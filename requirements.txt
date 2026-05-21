@@ -3,3 +3,4 @@ pandas
 requests
 fastapi
 uvicorn
+apscheduler
