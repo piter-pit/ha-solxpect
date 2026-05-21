@@ -98,10 +98,9 @@ def prepare_weather(dt, meteo_df):
 # ============================================================
 def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
-    start_dt = datetime.now(timezone.utc).replace(
-        minute=0, second=0, microsecond=0
-    )
+    now = datetime.now(timezone.utc)
 
+    start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_dt = start_dt + timedelta(days=3)
 
     latitude = plant.latitude
