@@ -1,3 +1,5 @@
 pvlib
 pandas
 requests
+fastapi
+uvicorn
