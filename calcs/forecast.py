@@ -8,18 +8,12 @@ from .SolarPowerPlant import SolarPowerPlant
 
 logger = logging.getLogger(__name__)
 
-
 def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "hourly": (
-            "direct_normal_irradiance,"
-            "diffuse_radiation,"
-            "shortwave_radiation,"
-            "temperature_2m"
-        ),
+        "hourly": "direct_normal_irradiance,diffuse_radiation,shortwave_radiation,temperature_2m",
         "start": start_dt.strftime("%Y-%m-%dT%H:%M"),
         "end": end_dt.strftime("%Y-%m-%dT%H:%M"),
         "timezone": "UTC"
@@ -66,7 +60,7 @@ def prepare_weather(dt, meteo_df):
     # Reason: it caused wrong hour mapping and silent data loss
     # ============================================================
 
-    row = meteo_df[meteo_df["time"] == dt]
+    row = meteo_df.loc[meteo_df["time"] == dt]
 
     if row.empty:
         logger.warning(f"No exact match for {dt}")
@@ -89,12 +83,8 @@ def prepare_weather(dt, meteo_df):
 def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
     now = datetime.now(timezone.utc)
-
-    # FIX 3: correct day alignment (stable full-day window)
     start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # FIX 4: keep 3 days window (OK)
-    end_dt = start_dt + timedelta(days=3)
+    end_dt = start_dt + timedelta(hours=48)
 
     meteo_df = fetch_open_meteo_data(
         plant.latitude,
@@ -113,36 +103,53 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     # FIX 5 (CRITICAL): iterate over REAL Open-Meteo timestamps
     # instead of synthetic hourly generator
     # ============================================================
-    for dt in meteo_df["time"]:
+    for hour in range(48):
+        hour_start = start_dt + timedelta(hours=hour)
+        energy_wh = 0.0
 
-        logger.info(f"Hour: {dt.strftime('%Y-%m-%d %H:%M')}")
+        logger.info(f"⏱️ Hour: {hour_start.strftime('%Y-%m-%d %H:%M')}")
 
-        inputs = prepare_weather(dt, meteo_df)
+        dt_step = hour_start + timedelta(minutes=30) #Immitate solXpect implementataion
+        hour_end = hour_start + timedelta(hours=1)
+        inputs = prepare_weather(hour_end, meteo_df)
 
         if inputs is None:
-            logger.warning(f"No data for {dt}")
+            logger.warning(f"{dt_step.strftime('%Y-%m-%d %H:%M')} – No data available")
             continue
 
         energy_wh = plant.getPower(
             solarPowerNormal=inputs["solar_power_normal"],
             solarPowerDiffuse=inputs["solar_power_diffuse"],
             shortwaveRadiation=inputs["shortwave_radiation"],
-            epochTimeSeconds=int(dt.timestamp()),
+            epochTimeSeconds=int(dt_step.timestamp()),
             ambientTemperature=inputs["ambient_temperature"]
         )
-
-        results.append((dt, energy_wh))
-
+        results.append((hour_end, energy_wh))
     return results
 
-
 def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
+    """
+    Applies azimuth-dependent shading logic.
 
+    thresholds: list of elevation thresholds per azimuth bin
+    opacities: list of shading percentages per azimuth bin
+    Assumes 36 bins covering 0–360° in 10° increments.
+    """
     bin_index = int(azimuth_deg // 10) % 36
     threshold = thresholds[bin_index]
     opacity = opacities[bin_index]
 
     if elevation_deg < threshold:
-        return 1.0 - opacity
+        factor = 1.0 - opacity
+        logger.debug(
+            f"⛅ Shading applied: azimuth={azimuth_deg:.1f}° → bin={bin_index}, "
+            f"elevation={elevation_deg:.1f}° < threshold={threshold:.1f}°, "
+            f"opacity={opacity:.1f}%, factor={factor:.2f}"
+        )
+        return factor
     else:
+        logger.debug(
+            f"☀️ No shading: azimuth={azimuth_deg:.1f}° → bin={bin_index}, "
+            f"elevation={elevation_deg:.1f}° ≥ threshold={threshold:.1f}°"
+        )
         return 1.0
