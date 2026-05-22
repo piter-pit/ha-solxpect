@@ -5,226 +5,264 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+
+from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 
-from .const import (
-    DOMAIN,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
-    CONF_CELLS_MAX_POWER,
-    CONF_CELLS_AREA,
-    CONF_CELLS_EFFICIENCY,
-    CONF_DIFFUSE_EFFICIENCY,
-    CONF_INVERTER_POWER_LIMIT,
-    CONF_INVERTER_EFFICIENCY,
-    CONF_AZIMUTH,
-    CONF_TILT,
-    CONF_ALBEDO,
-    CONF_IS_CENTRAL_INVERTER,
-    CONF_SHADING_ELEVATION,
-    CONF_SHADING_OPACITY,
-)
+DOMAIN = "solxpect"
+
 
 # ======================================================
-# 🔧 SHADING VALIDATOR (36 VALUES)
+# HELPERS
 # ======================================================
-def parse_36_values(raw: str, name: str) -> list[float]:
+
+def parse_36_values(raw: str) -> list[float]:
+    """Parse 36 comma-separated float values."""
+
     parts = [x.strip() for x in raw.split(",") if x.strip()]
 
     if len(parts) != 36:
-        raise ValueError(f"{name} must contain exactly 36 values")
+        raise ValueError("Expected exactly 36 values")
 
     return [float(x) for x in parts]
 
 
 # ======================================================
-# 🔵 CONFIG FLOW (INITIAL SETUP)
+# CONFIG FLOW
 # ======================================================
-class SolxpectConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Initial setup flow."""
+
+class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle SolXpect config flow."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None):
+    async def async_step_user(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ):
+
+        errors: dict[str, str] = {}
 
         if user_input is not None:
+
             try:
+                data = self._clean_input(user_input)
+
                 return self.async_create_entry(
                     title="SolXpect PV Forecast",
-                    data=self._parse_input(user_input),
+                    data=data,
                 )
-            except ValueError:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._get_schema(),
-                    errors={"base": "invalid_input"},
-                )
+
+            except Exception:
+                errors["base"] = "invalid_input"
 
         return self.async_show_form(
             step_id="user",
-            data_schema=self._get_schema(),
+            data_schema=self._build_schema(),
+            errors=errors,
         )
 
-    # -----------------------------
-    # PARSER
-    # -----------------------------
-    def _parse_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
-        cleaned: dict[str, Any] = {}
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry):
+        """Return options flow."""
+        return SolxpectOptionsFlow(config_entry)
 
-        float_keys = [
-            CONF_LATITUDE,
-            CONF_LONGITUDE,
-            CONF_CELLS_MAX_POWER,
-            CONF_CELLS_AREA,
-            CONF_CELLS_EFFICIENCY,
-            CONF_DIFFUSE_EFFICIENCY,
-            CONF_INVERTER_POWER_LIMIT,
-            CONF_INVERTER_EFFICIENCY,
-            CONF_AZIMUTH,
-            CONF_TILT,
-            CONF_ALBEDO,
+    def _clean_input(self, user_input: dict[str, Any]):
+
+        cleaned = {}
+
+        float_fields = [
+            "latitude",
+            "longitude",
+            "cells_max_power",
+            "cells_area",
+            "cells_efficiency",
+            "diffuse_efficiency",
+            "inverter_power_limit",
+            "inverter_efficiency",
+            "azimuth_angle",
+            "tilt_angle",
+            "albedo",
         ]
 
-        for key in float_keys:
-            try:
-                cleaned[key] = float(user_input.get(key, 0.0))
-            except Exception:
-                cleaned[key] = 0.0
+        for field in float_fields:
+            cleaned[field] = float(user_input[field])
 
-        cleaned[CONF_IS_CENTRAL_INVERTER] = bool(
-            user_input.get(CONF_IS_CENTRAL_INVERTER, True)
+        cleaned["is_central_inverter"] = bool(
+            user_input.get("is_central_inverter", True)
         )
 
-        cleaned[CONF_SHADING_ELEVATION] = parse_36_values(
-            user_input.get(CONF_SHADING_ELEVATION, ",".join(["0"] * 36)),
-            "shading_elevation",
+        cleaned["shading_elevation"] = parse_36_values(
+            user_input["shading_elevation"]
         )
 
-        cleaned[CONF_SHADING_OPACITY] = parse_36_values(
-            user_input.get(CONF_SHADING_OPACITY, ",".join(["0"] * 36)),
-            "shading_opacity",
+        cleaned["shading_opacity"] = parse_36_values(
+            user_input["shading_opacity"]
         )
 
         return cleaned
 
-    # -----------------------------
-    # UI SCHEMA
-    # -----------------------------
-    def _get_schema(self):
+    def _build_schema(self):
+
         return vol.Schema(
             {
-                vol.Required(CONF_LATITUDE, default=0.0): vol.Coerce(float),
-                vol.Required(CONF_LONGITUDE, default=0.0): vol.Coerce(float),
+                vol.Required("latitude", default=0.0): vol.Coerce(float),
+                vol.Required("longitude", default=0.0): vol.Coerce(float),
 
-                vol.Required(CONF_CELLS_MAX_POWER, default=6000): vol.Coerce(float),
-                vol.Required(CONF_CELLS_AREA, default=25.15): vol.Coerce(float),
-                vol.Required(CONF_CELLS_EFFICIENCY, default=22.6): vol.Coerce(float),
-                vol.Required(CONF_DIFFUSE_EFFICIENCY, default=97.5): vol.Coerce(float),
+                vol.Required("cells_max_power", default=6000): vol.Coerce(float),
+                vol.Required("cells_area", default=25.15): vol.Coerce(float),
+                vol.Required("cells_efficiency", default=22.6): vol.Coerce(float),
+                vol.Required("diffuse_efficiency", default=97.5): vol.Coerce(float),
 
-                vol.Required(CONF_INVERTER_POWER_LIMIT, default=6000): vol.Coerce(float),
-                vol.Required(CONF_INVERTER_EFFICIENCY, default=95.0): vol.Coerce(float),
+                vol.Required("inverter_power_limit", default=6000): vol.Coerce(float),
+                vol.Required("inverter_efficiency", default=95.0): vol.Coerce(float),
 
-                vol.Required(CONF_AZIMUTH, default=180): vol.Coerce(float),
-                vol.Required(CONF_TILT, default=40): vol.Coerce(float),
+                vol.Required("azimuth_angle", default=180): vol.Coerce(float),
+                vol.Required("tilt_angle", default=40): vol.Coerce(float),
 
-                vol.Required(CONF_ALBEDO, default=0.2): vol.Coerce(float),
+                vol.Required("albedo", default=0.2): vol.Coerce(float),
 
                 vol.Required(
-                    CONF_SHADING_ELEVATION,
+                    "shading_elevation",
                     default=",".join(["0"] * 36),
                 ): str,
 
                 vol.Required(
-                    CONF_SHADING_OPACITY,
+                    "shading_opacity",
                     default=",".join(["0"] * 36),
                 ): str,
 
-                vol.Required(CONF_IS_CENTRAL_INVERTER, default=True): bool,
+                vol.Required(
+                    "is_central_inverter",
+                    default=True,
+                ): bool,
             }
         )
 
-    # ======================================================
-    # 🔗 OPTIONS FLOW HOOK (ENABLE EDIT BUTTON)
-    # ======================================================
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry: ConfigEntry):
-        return SolxpectOptionsFlow(config_entry)
-
 
 # ======================================================
-# 🔵 OPTIONS FLOW (EDIT AFTER INSTALL)
+# OPTIONS FLOW
 # ======================================================
-class SolxpectOptionsFlow(OptionsFlow):
-    """Handle integration options editing."""
+
+class SolxpectOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry):
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+    async def async_step_init(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ):
+
+        errors: dict[str, str] = {}
 
         if user_input is not None:
+
             try:
+                data = SolxpectConfigFlow()._clean_input(user_input)
+
                 return self.async_create_entry(
                     title="",
-                    data=self._parse_input(user_input),
+                    data=data,
                 )
-            except ValueError:
-                return self.async_show_form(
-                    step_id="init",
-                    data_schema=self._get_schema(),
-                    errors={"base": "invalid_input"},
-                )
+
+            except Exception:
+                errors["base"] = "invalid_input"
+
+        current = {
+            **self.config_entry.data,
+            **self.config_entry.options,
+        }
 
         return self.async_show_form(
             step_id="init",
-            data_schema=self._get_schema(),
-        )
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "latitude",
+                        default=current.get("latitude", 0.0),
+                    ): vol.Coerce(float),
 
-    # reuse same parser
-    def _parse_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
-        return SolxpectConfigFlow()._parse_input(user_input)
+                    vol.Required(
+                        "longitude",
+                        default=current.get("longitude", 0.0),
+                    ): vol.Coerce(float),
 
-    # merge config + options safely
-    def _get_schema(self):
+                    vol.Required(
+                        "cells_max_power",
+                        default=current.get("cells_max_power", 6000),
+                    ): vol.Coerce(float),
 
-        data = {
-            **self.config_entry.data,
-            **(self.config_entry.options or {}),
-        }
+                    vol.Required(
+                        "cells_area",
+                        default=current.get("cells_area", 25.15),
+                    ): vol.Coerce(float),
 
-        return vol.Schema(
-            {
-                vol.Required(CONF_LATITUDE, default=data.get(CONF_LATITUDE, 0.0)): vol.Coerce(float),
-                vol.Required(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, 0.0)): vol.Coerce(float),
+                    vol.Required(
+                        "cells_efficiency",
+                        default=current.get("cells_efficiency", 22.6),
+                    ): vol.Coerce(float),
 
-                vol.Required(CONF_CELLS_MAX_POWER, default=data.get(CONF_CELLS_MAX_POWER, 6000)): vol.Coerce(float),
-                vol.Required(CONF_CELLS_AREA, default=data.get(CONF_CELLS_AREA, 25.15)): vol.Coerce(float),
-                vol.Required(CONF_CELLS_EFFICIENCY, default=data.get(CONF_CELLS_EFFICIENCY, 22.6)): vol.Coerce(float),
-                vol.Required(CONF_DIFFUSE_EFFICIENCY, default=data.get(CONF_DIFFUSE_EFFICIENCY, 97.5)): vol.Coerce(float),
+                    vol.Required(
+                        "diffuse_efficiency",
+                        default=current.get("diffuse_efficiency", 97.5),
+                    ): vol.Coerce(float),
 
-                vol.Required(CONF_INVERTER_POWER_LIMIT, default=data.get(CONF_INVERTER_POWER_LIMIT, 6000)): vol.Coerce(float),
-                vol.Required(CONF_INVERTER_EFFICIENCY, default=data.get(CONF_INVERTER_EFFICIENCY, 95.0)): vol.Coerce(float),
+                    vol.Required(
+                        "inverter_power_limit",
+                        default=current.get("inverter_power_limit", 6000),
+                    ): vol.Coerce(float),
 
-                vol.Required(CONF_AZIMUTH, default=data.get(CONF_AZIMUTH, 180)): vol.Coerce(float),
-                vol.Required(CONF_TILT, default=data.get(CONF_TILT, 40)): vol.Coerce(float),
+                    vol.Required(
+                        "inverter_efficiency",
+                        default=current.get("inverter_efficiency", 95.0),
+                    ): vol.Coerce(float),
 
-                vol.Required(CONF_ALBEDO, default=data.get(CONF_ALBEDO, 0.2)): vol.Coerce(float),
+                    vol.Required(
+                        "azimuth_angle",
+                        default=current.get("azimuth_angle", 180),
+                    ): vol.Coerce(float),
 
-                vol.Required(
-                    CONF_SHADING_ELEVATION,
-                    default=",".join(map(str, data.get(CONF_SHADING_ELEVATION, [0] * 36))),
-                ): str,
+                    vol.Required(
+                        "tilt_angle",
+                        default=current.get("tilt_angle", 40),
+                    ): vol.Coerce(float),
 
-                vol.Required(
-                    CONF_SHADING_OPACITY,
-                    default=",".join(map(str, data.get(CONF_SHADING_OPACITY, [0] * 36))),
-                ): str,
+                    vol.Required(
+                        "albedo",
+                        default=current.get("albedo", 0.2),
+                    ): vol.Coerce(float),
 
-                vol.Required(
-                    CONF_IS_CENTRAL_INVERTER,
-                    default=data.get(CONF_IS_CENTRAL_INVERTER, True),
-                ): bool,
-            }
+                    vol.Required(
+                        "shading_elevation",
+                        default=",".join(
+                            map(
+                                str,
+                                current.get("shading_elevation", [0] * 36),
+                            )
+                        ),
+                    ): str,
+
+                    vol.Required(
+                        "shading_opacity",
+                        default=",".join(
+                            map(
+                                str,
+                                current.get("shading_opacity", [0] * 36),
+                            )
+                        ),
+                    ): str,
+
+                    vol.Required(
+                        "is_central_inverter",
+                        default=current.get(
+                            "is_central_inverter",
+                            True,
+                        ),
+                    ): bool,
+                }
+            ),
+            errors=errors,
         )
