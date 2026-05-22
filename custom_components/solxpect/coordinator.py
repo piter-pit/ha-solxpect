@@ -42,7 +42,11 @@ class SolxpectCoordinator(DataUpdateCoordinator):
             shadingOpacity=[0]*36,
         )
 
-        forecast = forecast_today_and_tomorrow(plant, "PV")
+        forecast = await self.hass.async_add_executor_job(
+            forecast_today_and_tomorrow,
+            plant,
+            "PV"
+        )
 
         return {
             "forecast": [
