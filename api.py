@@ -7,15 +7,23 @@ from requests import Request
 from calcs.forecast import fetch_open_meteo_data
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI
-from zoneinfo import ZoneInfo
+
+# ============================================================
+# CHANGED: scheduler added (keeps control over timing)
+# ============================================================
 from apscheduler.schedulers.background import BackgroundScheduler
+
 from main import (
     get_zip_file_path,
     load_pv_settings_from_zip
 )
-from calcs.SolarPowerPlant import SolarPowerPlant
-from calcs.forecast import forecast_today_and_tomorrow
 
+from calcs.SolarPowerPlant import SolarPowerPlant
+
+# ============================================================
+# CHANGED: updated forecast function (today + tomorrow range)
+# ============================================================
+from calcs.forecast import forecast_today_and_tomorrow
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
