@@ -2,28 +2,23 @@ import threading
 import os
 import logging
 import time
+import tzlocal
 
 from requests import Request
 from calcs.forecast import fetch_open_meteo_data
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI
-
-# ============================================================
-# CHANGED: scheduler added (keeps control over timing)
-# ============================================================
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
-
 from main import (
     get_zip_file_path,
     load_pv_settings_from_zip
 )
-
 from calcs.SolarPowerPlant import SolarPowerPlant
-
-# ============================================================
-# CHANGED: updated forecast function (today + tomorrow range)
-# ============================================================
 from calcs.forecast import forecast_today_and_tomorrow
+
+SYSTEM_TZ = tzlocal.get_localzone()
+
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
