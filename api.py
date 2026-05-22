@@ -2,6 +2,7 @@ import threading
 import os
 import logging
 import time
+import tzlocal
 
 from requests import Request
 from calcs.forecast import fetch_open_meteo_data
@@ -50,6 +51,7 @@ def compute_forecast():
     logger.debug("COMPUTE START")
     zip_path = get_zip_file_path()
     settings = load_pv_settings_from_zip(zip_path)
+    SYSTEM_TZ = tzlocal.get_localzone()
 
     plant = SolarPowerPlant(
         albedo=float(settings['albedo']),
@@ -78,7 +80,7 @@ def compute_forecast():
     payload = {
         "plant": settings,
         "forecast": [
-            {"time": t.isoformat(), "wh": wh}
+            {"time": t.astimezone(SYSTEM_TZ).isoformat(), "wh": wh}
             for t, wh in forecast
         ]
     }
