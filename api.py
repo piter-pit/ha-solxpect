@@ -37,11 +37,11 @@ def compute_forecast():
         diffuseEfficiency=float(settings['diffuse_efficiency']),
         inverterPowerLimit=float(settings['inverter_power_limit']),
         inverterEfficiency=float(settings['inverter_efficiency']),
-        isCentralInverter=bool(settings['is_central_inverter']),
+        isCentralInverter=bool(int(settings['is_central_inverter'])),
         azimuthAngle=float(settings['azimuth_angle']),
         tiltAngle=float(settings['tilt_angle']),
-        shadingElevation=settings['shading_elevation'],
-        shadingOpacity=settings['shading_opacity']
+        shadingElevation=[int(x) for x in settings['shading_elevation'].split(',')],
+        shadingOpacity=[int(x) for x in settings['shading_opacity'].split(',')]
     )
 
     forecast = forecast_today_and_tomorrow(
