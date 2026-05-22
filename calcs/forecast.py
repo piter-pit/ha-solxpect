@@ -3,9 +3,11 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 import pvlib
+import tzlocal
 
 from .SolarPowerPlant import SolarPowerPlant
 
+SYSTEM_TZ = tzlocal.get_localzone()
 logger = logging.getLogger(__name__)
 
 def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
