@@ -2,10 +2,8 @@ import os
 import zipfile
 import sqlite3
 import tempfile
-import logging
 
 from datetime import datetime, timezone, timedelta
-
 from calcs.SolarPowerPlant import SolarPowerPlant
 from calcs.forecast import forecast_today_and_tomorrow
 
