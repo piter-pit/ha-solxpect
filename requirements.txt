@@ -1,6 +1,0 @@
-pvlib
-pandas
-requests
-fastapi
-uvicorn
-apscheduler
