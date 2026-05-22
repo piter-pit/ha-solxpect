@@ -46,7 +46,7 @@ def compute_forecast():
 
     forecast = forecast_today_and_tomorrow(
         plant=plant,
-        city_name=settings['city_name']
+        city_name="PV"
     )
 
     payload = {
