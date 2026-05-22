@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant.config_entries import (
+    ConfigFlow,
+    ConfigEntry,
+    OptionsFlowWithConfigEntry,
+)
 from homeassistant.core import callback
 
 DOMAIN = "solxpect"
@@ -15,7 +19,7 @@ DOMAIN = "solxpect"
 def parse_36_values(raw: str, name: str) -> list[float]:
     """Validate and parse 36-value CSV strings."""
     try:
-        parts = [x.strip() for x in raw.split(",") if x.strip() != ""]
+        parts = [x.strip() for x in raw.split(",") if x.strip()]
 
         if len(parts) != 36:
             raise ValueError(f"{name} must contain exactly 36 values")
@@ -27,9 +31,9 @@ def parse_36_values(raw: str, name: str) -> list[float]:
 
 
 # ======================================================
-# 🔵 CONFIG FLOW (first install)
+# 🔵 CONFIG FLOW (FIRST INSTALL)
 # ======================================================
-class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class SolxpectConfigFlow(ConfigFlow, domain=DOMAIN):
     """Initial setup flow."""
 
     VERSION = 1
@@ -56,9 +60,9 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     # -----------------------------
-    # INPUT PARSING
+    # INPUT PARSER
     # -----------------------------
-    def _parse_input(self, user_input: dict):
+    def _parse_input(self, user_input: dict) -> dict:
         cleaned = {}
 
         float_keys = [
@@ -134,21 +138,22 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     # ======================================================
-    # 🔗 ENABLE OPTIONS FLOW (EDIT IN UI)
+    # 🔗 OPTIONS FLOW HOOK
     # ======================================================
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: ConfigEntry):
         return SolxpectOptionsFlow(config_entry)
 
 
 # ======================================================
 # 🔵 OPTIONS FLOW (EDIT AFTER INSTALL)
 # ======================================================
-class SolxpectOptionsFlow(config_entries.OptionsFlow):
+class SolxpectOptionsFlow(OptionsFlowWithConfigEntry):
     """Handle integration options editing."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry):
+    def __init__(self, config_entry: ConfigEntry):
+        super().__init__()
         self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
@@ -169,13 +174,17 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
             data_schema=self._get_schema(),
         )
 
-    # reuse parser logic safely
-    def _parse_input(self, user_input: dict):
+    # -----------------------------
+    # reuse parser safely
+    # -----------------------------
+    def _parse_input(self, user_input: dict) -> dict:
         return SolxpectConfigFlow()._parse_input(user_input)
 
-    # merge existing config + options
+    # -----------------------------
+    # OPTIONS SCHEMA (SAFE MERGE)
+    # -----------------------------
     def _get_schema(self):
-        data = {**self.config_entry.data, **self.config_entry.options}
+        data = {**self.config_entry.data, **(self.config_entry.options or {})}
 
         return vol.Schema(
             {
