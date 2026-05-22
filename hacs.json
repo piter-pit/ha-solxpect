@@ -1,5 +1,6 @@
 {
   "name": "SolXpect PV Forecast",
   "content_in_root": false,
-  "domains": ["solxpect"]
+  "domains": ["sensor", "button"],
+  "homeassistant": "2026.3.0"
 }
