@@ -18,6 +18,10 @@ class SolxpectTodaySensor(CoordinatorEntity):
         super().__init__(coordinator)
         self._attr_name = "SolXpect Today"
         self._attr_unique_id = "solxpect_today"
+        self._attr_device_class = "energy"
+        self._attr_state_class = "total"
+        self._attr_native_unit_of_measurement = "kWh"
+        
 
     @property
     def state(self):
@@ -45,6 +49,9 @@ class SolxpectTomorrowSensor(CoordinatorEntity):
         super().__init__(coordinator)
         self._attr_name = "SolXpect Tomorrow"
         self._attr_unique_id = "solxpect_tomorrow"
+        self._attr_device_class = "energy"
+        self._attr_state_class = "total"
+        self._attr_native_unit_of_measurement = "kWh"
 
     @property
     def state(self):
