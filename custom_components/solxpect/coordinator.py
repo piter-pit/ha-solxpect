@@ -1,16 +1,19 @@
-from datetime import datetime, timedelta
 import tzlocal
+import logging
+
+from datetime import datetime, timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .forecast import forecast_today_and_tomorrow
 from .SolarPowerPlant import SolarPowerPlant
 
+_LOGGER = logging.getLogger(__name__)
 
 class SolxpectCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass, config_entry):
         super().__init__(
             hass,
-            logger=None,
+            logger=_LOGGER,
             name="solxpect_coordinator",
             update_interval=timedelta(hours=4),
         )
