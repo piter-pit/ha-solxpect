@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
@@ -6,8 +5,6 @@ import pvlib
 import tzlocal
 
 from .SolarPowerPlant import SolarPowerPlant
-
-logger = logging.getLogger(__name__)
 
 def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     url = "https://api.open-meteo.com/v1/forecast"
@@ -21,18 +18,15 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     }
 
     full_url = requests.Request('GET', url, params=params).prepare().url
-    logger.debug(f"API Request: {full_url}")
 
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
-        logger.error(f"Open-Meteo error {response.status_code}: {response.text}")
         response.raise_for_status()
 
     data = response.json()
 
     if "hourly" not in data:
-        logger.warning("No hourly field in response")
         return pd.DataFrame()
 
     df = pd.DataFrame(data["hourly"])
@@ -46,7 +40,6 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
 def prepare_weather(dt, meteo_df):
 
     if meteo_df is None or meteo_df.empty:
-        logger.warning("Empty meteo dataframe")
         return None
 
     # FIX 1: unified timestamp normalization (UTC consistency)
@@ -64,13 +57,11 @@ def prepare_weather(dt, meteo_df):
     row = meteo_df.loc[meteo_df["time"] == dt]
 
     if row.empty:
-        logger.warning(f"No exact match for {dt}")
         return None
 
     row = row.iloc[0]
 
     if pd.isna(row["temperature_2m"]):
-        logger.warning(f"No valid weather for {dt}")
         return None
 
     return {
@@ -93,14 +84,6 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     end_dt = end_local.astimezone(timezone.utc)
 
     SYSTEM_TZ = tzlocal.get_localzone()
-    
-    logger.debug(f"SYSTEM_TZ = {SYSTEM_TZ}")
-    logger.debug(f"now_local = {now_local} | tz={now_local.tzinfo}")
-    logger.debug(f"start_local = {start_local} | tz={start_local.tzinfo}")
-    logger.debug(f"end_local = {end_local} | tz={end_local.tzinfo}")
-    logger.debug(f"start_dt (UTC) = {start_dt} | tz={start_dt.tzinfo}")
-    logger.debug(f"end_dt (UTC) = {end_dt} | tz={end_dt.tzinfo}")
-    logger.debug(f"offset_hours = {(start_local - start_dt).total_seconds() / 3600}")
 
     meteo_df = fetch_open_meteo_data(
         plant.latitude,
@@ -110,7 +93,6 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     )
 
     if meteo_df.empty:
-        logger.error("Empty meteo dataframe")
         return []
 
     results = []
@@ -123,25 +105,12 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
         hour_start = start_dt + timedelta(hours=hour)
         energy_wh = 0.0
 
-        logger.info(f"⏱️ Hour: {hour_start.strftime('%Y-%m-%d %H:%M')}")
-
         dt_step = hour_start + timedelta(minutes=30) #Immitate solXpect implementataion
         hour_end = hour_start + timedelta(hours=1)
         inputs = prepare_weather(hour_end, meteo_df)
 
         if inputs is None:
-            logger.warning(f"{dt_step.strftime('%Y-%m-%d %H:%M')} – No data available")
             continue
-
-        logger.info(
-            f"DEBUG getPower INPUT | "
-            f"time={hour_start.isoformat()} | "
-            f"epoch={int(dt_step.timestamp())} | "
-            f"DNI={inputs['solar_power_normal']} | "
-            f"diffuse={inputs['solar_power_diffuse']} | "
-            f"sw={inputs['shortwave_radiation']} | "
-            f"temp={inputs['ambient_temperature']}"
-        )
         
         energy_wh = plant.getPower(
             solarPowerNormal=inputs["solar_power_normal"],
@@ -151,9 +120,7 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
             ambientTemperature=inputs["ambient_temperature"]
         )
         results.append((hour_start, energy_wh))
-        logger.debug(f"APPEND | hour_end={hour_end} | energy={energy_wh}")
         
-    logger.info(f"FORECAST DONE | results_count={len(results)}")
     return results
 
 def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
@@ -170,15 +137,6 @@ def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
 
     if elevation_deg < threshold:
         factor = 1.0 - opacity
-        logger.debug(
-            f"⛅ Shading applied: azimuth={azimuth_deg:.1f}° → bin={bin_index}, "
-            f"elevation={elevation_deg:.1f}° < threshold={threshold:.1f}°, "
-            f"opacity={opacity:.1f}%, factor={factor:.2f}"
-        )
         return factor
     else:
-        logger.debug(
-            f"☀️ No shading: azimuth={azimuth_deg:.1f}° → bin={bin_index}, "
-            f"elevation={elevation_deg:.1f}° ≥ threshold={threshold:.1f}°"
-        )
         return 1.0
