@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 import pvlib
+import tzlocal
 
 from .SolarPowerPlant import SolarPowerPlant
 
@@ -82,9 +83,14 @@ def prepare_weather(dt, meteo_df):
 
 def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
 
-    now = datetime.now(timezone.utc)
-    start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_dt = start_dt + timedelta(hours=48)
+    SYSTEM_TZ = tzlocal.get_localzone()
+    
+    now_local = datetime.now(SYSTEM_TZ)
+    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_local = start_local + timedelta(hours=48)
+
+    start_dt = start_local.astimezone(timezone.utc)
+    end_dt = end_local.astimezone(timezone.utc)
 
     meteo_df = fetch_open_meteo_data(
         plant.latitude,
