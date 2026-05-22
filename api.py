@@ -2,7 +2,6 @@ import threading
 import os
 import logging
 import time
-import tzlocal
 
 from requests import Request
 from calcs.forecast import fetch_open_meteo_data
@@ -16,8 +15,6 @@ from main import (
 )
 from calcs.SolarPowerPlant import SolarPowerPlant
 from calcs.forecast import forecast_today_and_tomorrow
-
-SYSTEM_TZ = tzlocal.get_localzone()
 
 logger = logging.getLogger(__name__)
 app = FastAPI()
