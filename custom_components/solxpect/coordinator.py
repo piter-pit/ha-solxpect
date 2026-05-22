@@ -5,8 +5,42 @@ from datetime import datetime, timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .forecast import forecast_today_and_tomorrow
 from .SolarPowerPlant import SolarPowerPlant
+from collections import defaultdict
+from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
+
+def build_daily_hours(forecast, tz):
+    """
+    forecast: list[{time, wh}]
+    tz: HA local timezone
+    """
+
+    now_local = datetime.now(tz).date()
+
+    today = defaultdict(float)
+    tomorrow = defaultdict(float)
+
+    # init 0–23 zawsze (wymaganie UI)
+    def init_hours():
+        return {f"{h:02d}:00": 0.0 for h in range(24)}
+
+    today_hours = init_hours()
+    tomorrow_hours = init_hours()
+
+    for item in forecast:
+        dt_local = item["time"].astimezone(tz)
+        day = dt_local.date()
+        hour = f"{dt_local.hour:02d}:00"
+
+        value = item["wh"] / 1000.0  # Wh → kWh
+
+        if day == now_local:
+            today_hours[hour] += value
+        elif day == now_local + timedelta(days=1):
+            tomorrow_hours[hour] += value
+
+    return today_hours, tomorrow_hours
 
 class SolxpectCoordinator(DataUpdateCoordinator):
 
@@ -22,7 +56,7 @@ class SolxpectCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
 
         cfg = self.config_entry.data
-        SYSTEM_TZ = tzlocal.get_localzone()
+        tz = dt_util.get_default_time_zone()
 
         plant = SolarPowerPlant(
             albedo=cfg["albedo"],
@@ -48,9 +82,14 @@ class SolxpectCoordinator(DataUpdateCoordinator):
             "PV"
         )
 
+        data = [
+            {"time": t, "wh": wh}
+            for t, wh in forecast
+        ]
+
+        today, tomorrow = build_daily_hours(data, tz)
+
         return {
-            "forecast": [
-                {"time": t.astimezone(SYSTEM_TZ), "wh": wh}
-                for t, wh in forecast
-            ]
+            "today": today,
+            "tomorrow": tomorrow,
         }
