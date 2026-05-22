@@ -13,5 +13,5 @@
   "shading_opacity":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
   "cells_temp_coeff":-0.25999999046325684,
   "albedo":0.2,
-  "is_central_inverter":1,
+  "is_central_inverter":1
 }
