@@ -1,3 +1,7 @@
+"""Config flow for SolXpect PV Forecast."""
+
+from __future__ import annotations
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -5,28 +9,42 @@ from homeassistant.core import callback
 DOMAIN = "solxpect"
 
 
+# ======================================================
+# 🔧 UTIL: 36-value CSV parser
+# ======================================================
 def parse_36_values(raw: str, name: str) -> list[float]:
     """Validate and parse 36-value CSV strings."""
     try:
         parts = [x.strip() for x in raw.split(",") if x.strip() != ""]
+
         if len(parts) != 36:
             raise ValueError(f"{name} must contain exactly 36 values")
 
         return [float(x) for x in parts]
 
-    except Exception:
-        raise ValueError(f"Invalid {name}")
+    except Exception as err:
+        raise ValueError(f"Invalid {name}") from err
 
 
+# ======================================================
+# 🔵 CONFIG FLOW (first install)
+# ======================================================
 class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Initial setup (create integration)."""
+    """Initial setup flow."""
 
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
+            try:
+                cleaned = self._parse_input(user_input)
+            except ValueError:
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=self._get_schema(),
+                    errors={"base": "invalid_input"},
+                )
 
-            cleaned = self._parse_input(user_input)
             return self.async_create_entry(
                 title="SolXpect PV Forecast",
                 data=cleaned,
@@ -37,6 +55,9 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=self._get_schema(),
         )
 
+    # -----------------------------
+    # INPUT PARSING
+    # -----------------------------
     def _parse_input(self, user_input: dict):
         cleaned = {}
 
@@ -57,7 +78,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         for key in float_keys:
             try:
                 cleaned[key] = float(user_input.get(key, 0.0))
-            except (ValueError, TypeError):
+            except Exception:
                 cleaned[key] = 0.0
 
         cleaned["is_central_inverter"] = bool(
@@ -76,6 +97,9 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return cleaned
 
+    # -----------------------------
+    # UI SCHEMA
+    # -----------------------------
     def _get_schema(self):
         return vol.Schema(
             {
@@ -95,28 +119,42 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 vol.Required("albedo", default=0.2): vol.Coerce(float),
 
-                vol.Required("shading_elevation", default=",".join(["0"] * 36)): str,
-                vol.Required("shading_opacity", default=",".join(["0"] * 36)): str,
+                vol.Required(
+                    "shading_elevation",
+                    default=",".join(["0"] * 36),
+                ): str,
+
+                vol.Required(
+                    "shading_opacity",
+                    default=",".join(["0"] * 36),
+                ): str,
 
                 vol.Required("is_central_inverter", default=True): bool,
             }
         )
 
+    # ======================================================
+    # 🔗 ENABLE OPTIONS FLOW (EDIT IN UI)
+    # ======================================================
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return SolxpectOptionsFlow(config_entry)
+
 
 # ======================================================
-# 🔥 OPTIONS FLOW (EDIT AFTER INSTALLATION)
+# 🔵 OPTIONS FLOW (EDIT AFTER INSTALL)
 # ======================================================
+class SolxpectOptionsFlow(config_entries.OptionsFlow):
+    """Handle integration options editing."""
 
-class SolxpectOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
-    """Handle editing integration settings."""
-
-    def __init__(self, config_entry):
+    def __init__(self, config_entry: config_entries.ConfigEntry):
         self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             try:
-                cleaned = SolxpectConfigFlow()._parse_input(user_input)
+                cleaned = self._parse_input(user_input)
             except ValueError:
                 return self.async_show_form(
                     step_id="init",
@@ -131,6 +169,11 @@ class SolxpectOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
             data_schema=self._get_schema(),
         )
 
+    # reuse parser logic safely
+    def _parse_input(self, user_input: dict):
+        return SolxpectConfigFlow()._parse_input(user_input)
+
+    # merge existing config + options
     def _get_schema(self):
         data = {**self.config_entry.data, **self.config_entry.options}
 
@@ -154,27 +197,17 @@ class SolxpectOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
 
                 vol.Required(
                     "shading_elevation",
-                    default=",".join(map(str, data.get("shading_elevation", [0]*36))),
+                    default=",".join(map(str, data.get("shading_elevation", [0] * 36))),
                 ): str,
 
                 vol.Required(
                     "shading_opacity",
-                    default=",".join(map(str, data.get("shading_opacity", [0]*36))),
+                    default=",".join(map(str, data.get("shading_opacity", [0] * 36))),
                 ): str,
 
-                vol.Required("is_central_inverter", default=data.get("is_central_inverter", True)): bool,
+                vol.Required(
+                    "is_central_inverter",
+                    default=data.get("is_central_inverter", True),
+                ): bool,
             }
         )
-
-
-# ======================================================
-# 🔗 REQUIRED HOOK (to enable EDIT button in UI)
-# ======================================================
-
-class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
-
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry):
-        return SolxpectOptionsFlow(config_entry)
