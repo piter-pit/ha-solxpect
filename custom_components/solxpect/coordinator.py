@@ -1,22 +1,49 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+import tzlocal
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-
 from .forecast import forecast_today_and_tomorrow
 from .SolarPowerPlant import SolarPowerPlant
 
 
 class SolxpectCoordinator(DataUpdateCoordinator):
 
-    def __init__(self, hass, config):
+    def __init__(self, hass, config_entry):
         super().__init__(
             hass,
-            name="solxpect",
+            logger=None,
+            name="solxpect_coordinator",
             update_interval=timedelta(hours=4),
         )
-        self.config = config
+        self.config_entry = config_entry
 
     async def _async_update_data(self):
 
-        plant = SolarPowerPlant(**self.config)
+        cfg = self.config_entry.data
+        SYSTEM_TZ = tzlocal.get_localzone()
 
-        return forecast_today_and_tomorrow(plant, "PV")
+        plant = SolarPowerPlant(
+            albedo=cfg["albedo"],
+            latitude=cfg["latitude"],
+            longitude=cfg["longitude"],
+            cellsMaxPower=cfg["cells_max_power"],
+            cellsArea=cfg["cells_area"],
+            cellsEfficiency=cfg["cells_efficiency"],
+            cellsTempCoeff=cfg.get("cells_temp_coeff", -0.26),
+            diffuseEfficiency=cfg["diffuse_efficiency"],
+            inverterPowerLimit=cfg["inverter_power_limit"],
+            inverterEfficiency=cfg["inverter_efficiency"],
+            isCentralInverter=int(cfg["is_central_inverter"]),
+            azimuthAngle=cfg["azimuth_angle"],
+            tiltAngle=cfg["tilt_angle"],
+            shadingElevation=[0]*36,
+            shadingOpacity=[0]*36,
+        )
+
+        forecast = forecast_today_and_tomorrow(plant, "PV")
+
+        return {
+            "forecast": [
+                {"time": t.astimezone(SYSTEM_TZ), "wh": wh}
+                for t, wh in forecast
+            ]
+        }
