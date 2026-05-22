@@ -2,18 +2,13 @@ import threading
 import os
 import time
 import tzlocal
+import json
 
 from requests import Request
 from calcs.forecast import fetch_open_meteo_data
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
-
-from main import (
-    get_zip_file_path,
-    load_pv_settings_from_zip
-)
-
 from calcs.SolarPowerPlant import SolarPowerPlant
 from calcs.forecast import forecast_today_and_tomorrow
 
@@ -22,27 +17,31 @@ app = FastAPI()
 LATEST_DATA = {}
 LOCK = threading.Lock()
 
+def load_pv_settings():
+    path = os.getenv("CONFIG_PATH", "/app/config/config.json")
+    with open(path, "r") as f:
+        return json.load(f)
+
 def compute_forecast():
-    zip_path = get_zip_file_path()
-    settings = load_pv_settings_from_zip(zip_path)
+    settings = load_pv_settings()
     SYSTEM_TZ = tzlocal.get_localzone()
 
     plant = SolarPowerPlant(
         albedo=float(settings['albedo']),
         latitude=float(settings['latitude']),
         longitude=float(settings['longitude']),
-        cellsMaxPower=float(settings['cells_max_pPower']),
+        cellsMaxPower=float(settings['cells_max_power']),
         cellsArea=float(settings['cells_area']),
         cellsEfficiency=float(settings['cells_efficiency']),
         cellsTempCoeff=float(settings['cells_temp_coeff']),
         diffuseEfficiency=float(settings['diffuse_efficiency']),
         inverterPowerLimit=float(settings['inverter_power_limit']),
         inverterEfficiency=float(settings['inverter_efficiency']),
-        isCentralInverter=bool(int(settings['is_central_inverter'])),
+        isCentralInverter=bool(settings['is_central_inverter']),
         azimuthAngle=float(settings['azimuth_angle']),
         tiltAngle=float(settings['tilt_angle']),
-        shadingElevation=[int(x) for x in settings['shading_elevation'].split(',')],
-        shadingOpacity=[int(x) for x in settings['shading_opacity'].split(',')]
+        shadingElevation=settings['shading_elevation'],
+        shadingOpacity=settings['shading_opacity']
     )
 
     forecast = forecast_today_and_tomorrow(
