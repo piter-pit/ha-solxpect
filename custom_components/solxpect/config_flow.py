@@ -107,7 +107,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # 🔥 OPTIONS FLOW (EDIT AFTER INSTALLATION)
 # ======================================================
 
-class SolxpectOptionsFlow(config_entries.OptionsFlow):
+class SolxpectOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
     """Handle editing integration settings."""
 
     def __init__(self, config_entry):
