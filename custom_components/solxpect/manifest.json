@@ -3,6 +3,7 @@
   "name": "SolXpect PV Forecast",
   "version": "0.1.0",
   "documentation": "https://github.com/piter-pit/ha-solxpect",
+  "codeowners": ["@piter-pit"],
   "requirements": [
     "pvlib",
     "numpy",
