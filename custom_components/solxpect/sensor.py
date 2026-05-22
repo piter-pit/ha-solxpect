@@ -1,5 +1,15 @@
 from homeassistant.helpers.entity import Entity
 
+DOMAIN = "solxpect"
+
+async def async_setup_entry(hass, entry, async_add_entities):
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    async_add_entities([
+        SolxpectSensor(coordinator)
+    ])
+
 
 class SolxpectSensor(Entity):
 
@@ -8,11 +18,20 @@ class SolxpectSensor(Entity):
 
     @property
     def name(self):
-        return "Solxpect Forecast"
+        return "SolXpect Forecast"
 
     @property
     def state(self):
-        if not self.coordinator.data:
-            return 0
+        data = self.coordinator.data
+        if not data:
+            return None
+        return round(data["forecast"][0]["wh"], 2)
 
-        return sum(x[1] for x in self.coordinator.data[:24])
+    @property
+    def extra_state_attributes(self):
+        return {
+            "forecast": self.coordinator.data["forecast"]
+        }
+
+    async def async_update(self):
+        await self.coordinator.async_request_refresh()
