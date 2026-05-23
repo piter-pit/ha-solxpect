@@ -40,8 +40,6 @@ _LOGGER = logging.getLogger(__name__)
 # ==========================================================
 
 def parse_36_values(value: str, field_name: str) -> list[float]:
-    """Parse 36 comma separated values."""
-
     parts = [x.strip() for x in value.split(",")]
 
     if len(parts) != 36:
@@ -54,14 +52,10 @@ def parse_36_values(value: str, field_name: str) -> list[float]:
 
 
 def list_to_csv(values: list[Any]) -> str:
-    """Convert list to csv string."""
-
     return ",".join(str(x) for x in values)
 
 
 def get_default(defaults: dict[str, Any], key: str, fallback: Any) -> Any:
-    """Get default value."""
-
     return defaults.get(key, fallback)
 
 
@@ -70,11 +64,8 @@ def get_default(defaults: dict[str, Any], key: str, fallback: Any) -> Any:
 # ==========================================================
 
 def build_schema(defaults: dict[str, Any]) -> vol.Schema:
-    """Build config schema."""
-
     return vol.Schema(
         {
-            # ---------------- BASIC ----------------
             vol.Required(CONF_LONGITUDE, default=get_default(defaults, CONF_LONGITUDE, 0.0)): vol.Coerce(float),
             vol.Required(CONF_LATITUDE, default=get_default(defaults, CONF_LATITUDE, 0.0)): vol.Coerce(float),
 
@@ -93,39 +84,15 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_CELLS_TEMP_COEFF, default=get_default(defaults, CONF_CELLS_TEMP_COEFF, -0.26)): vol.Coerce(float),
             vol.Required(CONF_ALBEDO, default=get_default(defaults, CONF_ALBEDO, 0.0)): vol.Coerce(float),
 
-            # ---------------- RETAIN ----------------
-            vol.Required(
-                CONF_RETAIN_ENABLED,
-                default=get_default(defaults, CONF_RETAIN_ENABLED, True),
-            ): bool,
+            vol.Required(CONF_RETAIN_ENABLED, default=get_default(defaults, CONF_RETAIN_ENABLED, True)): bool,
+            vol.Required(CONF_RETAIN_HOURS, default=12): vol.Coerce(int),
 
-            vol.Required(
-                CONF_RETAIN_HOURS,
-                default=12,
-            ): vol.Coerce(int),
+            vol.Required(CONF_FORECAST_UPDATE_HOURS, default=4): vol.Coerce(int),
 
-            # ---------------- FORECAST UPDATE (NEW) ----------------
-            vol.Required(
-                CONF_FORECAST_UPDATE_HOURS,
-                default=4,
-            ): vol.Coerce(int),
+            vol.Required(CONF_SHADING_ELEVATION, default=list_to_csv(get_default(defaults, CONF_SHADING_ELEVATION, [0] * 36))): str,
+            vol.Required(CONF_SHADING_OPACITY, default=list_to_csv(get_default(defaults, CONF_SHADING_OPACITY, [0] * 36))): str,
 
-            # ---------------- SHADING ----------------
-            vol.Required(
-                CONF_SHADING_ELEVATION,
-                default=list_to_csv(get_default(defaults, CONF_SHADING_ELEVATION, [0] * 36)),
-            ): str,
-
-            vol.Required(
-                CONF_SHADING_OPACITY,
-                default=list_to_csv(get_default(defaults, CONF_SHADING_OPACITY, [0] * 36)),
-            ): str,
-
-            # ---------------- INVERTER ----------------
-            vol.Required(
-                CONF_IS_CENTRAL_INVERTER,
-                default=get_default(defaults, CONF_IS_CENTRAL_INVERTER, True),
-            ): bool,
+            vol.Required(CONF_IS_CENTRAL_INVERTER, default=get_default(defaults, CONF_IS_CENTRAL_INVERTER, True)): bool,
         }
     )
 
@@ -135,8 +102,6 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
 # ==========================================================
 
 def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Validate and normalize user input."""
-
     data = {}
 
     float_fields = [
@@ -157,14 +122,11 @@ def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
     for field in float_fields:
         data[field] = float(user_input[field])
 
-    # RETAIN
     data[CONF_RETAIN_ENABLED] = bool(user_input[CONF_RETAIN_ENABLED])
     data[CONF_RETAIN_HOURS] = int(user_input[CONF_RETAIN_HOURS])
 
-    # FORECAST UPDATE (NEW)
     data[CONF_FORECAST_UPDATE_HOURS] = int(user_input[CONF_FORECAST_UPDATE_HOURS])
 
-    # SHADING
     data[CONF_SHADING_ELEVATION] = parse_36_values(
         user_input[CONF_SHADING_ELEVATION],
         CONF_SHADING_ELEVATION,
@@ -175,7 +137,6 @@ def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_SHADING_OPACITY,
     )
 
-    # INVERTER
     data[CONF_IS_CENTRAL_INVERTER] = bool(
         user_input.get(CONF_IS_CENTRAL_INVERTER, True)
     )
@@ -188,7 +149,6 @@ def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
 # ==========================================================
 
 class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-
     VERSION = 1
 
     @staticmethod
@@ -206,9 +166,10 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title="SolXpect PV Forecast",
                     data=parsed,
+                    options={},   # ✅ IMPORTANT FIX
                 )
 
-            except Exception as err:
+            except Exception:
                 _LOGGER.exception("Config flow error")
                 errors["base"] = "invalid_input"
 
@@ -224,30 +185,21 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # ==========================================================
 
 class SolxpectOptionsFlow(config_entries.OptionsFlow):
-
     def __init__(self, config_entry):
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
-
         errors = {}
 
         if user_input is not None:
             try:
                 parsed = parse_user_input(user_input)
 
-                result = self.async_create_entry(
+                # ✅ FIX: options instead of data
+                return self.async_create_entry(
                     title="",
                     data=parsed,
                 )
-
-                self.hass.async_create_task(
-                    self.hass.config_entries.async_reload(
-                        self._config_entry.entry_id
-                    )
-                )
-
-                return result
 
             except Exception:
                 _LOGGER.exception("Options flow error")
