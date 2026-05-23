@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+import asyncio
 
 import voluptuous as vol
 
@@ -33,6 +34,9 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# 🔥 CRITICAL: prevents race conditions during reload/update
+_RELOAD_LOCK = asyncio.Lock()
 
 
 # ==========================================================
@@ -172,7 +176,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title="SolXpect PV Forecast",
                     data=parsed,
-                    options={},  # required
+                    options={},
                 )
 
             except Exception:
@@ -187,7 +191,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 # ==========================================================
-# OPTIONS FLOW (FIXED)
+# OPTIONS FLOW (FIXED + SAFE RELOAD)
 # ==========================================================
 
 class SolxpectOptionsFlow(config_entries.OptionsFlow):
@@ -197,6 +201,7 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         errors = {}
 
+        # ALWAYS rebuild from fresh state (IMPORTANT FIX)
         current = {
             **self._config_entry.data,
             **self._config_entry.options,
@@ -207,16 +212,18 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
                 merged = {**current, **user_input}
                 parsed = parse_user_input(merged)
 
-                result = self.async_create_entry(
-                    title="",
-                    data=parsed,
-                )
+                async with _RELOAD_LOCK:
 
-                await self.hass.config_entries.async_reload(
-                    self._config_entry.entry_id
-                )
+                    entry = self.async_create_entry(
+                        title="",
+                        data=parsed,
+                    )
 
-                return result
+                    await self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+
+                    return entry
 
             except Exception:
                 _LOGGER.exception("Options flow error")
