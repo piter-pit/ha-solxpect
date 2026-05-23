@@ -8,6 +8,8 @@ DOMAIN = "solxpect"
 # ==========================================================
 
 async def async_setup_entry(hass, entry):
+    """Set up SolXpect config entry."""
+
     coordinator = SolxpectCoordinator(hass, entry)
 
     # initial fetch
@@ -17,10 +19,12 @@ async def async_setup_entry(hass, entry):
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # forward platforms (sensors etc.)
+    # forward platforms
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
-    # 🔥 IMPORTANT: react to options changes
+    # ======================================================
+    # IMPORTANT: register update listener safely
+    # ======================================================
     entry.async_on_unload(
         entry.add_update_listener(_async_update_listener)
     )
@@ -29,19 +33,33 @@ async def async_setup_entry(hass, entry):
 
 
 # ==========================================================
-# UPDATE LISTENER (CRITICAL MISSING PIECE)
+# UPDATE LISTENER (FIXED - NO RACE / NO STALE STATE)
 # ==========================================================
 
 async def _async_update_listener(hass, entry):
-    """Called when config entry is updated (OptionsFlow)."""
+    """
+    Called when config entry options are updated.
 
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    FIXES:
+    - prevents stale coordinator config
+    - avoids partial refresh race conditions
+    """
 
-    # refresh config reference inside coordinator
+    coordinator = hass.data[DOMAIN].get(entry.entry_id)
+
+    if coordinator is None:
+        return
+
+    # ------------------------------------------------------
+    # IMPORTANT: update config reference FIRST
+    # ------------------------------------------------------
     coordinator.config_entry = entry
 
-    # force refresh data after option change
-    await coordinator.async_request_refresh()
+    # ------------------------------------------------------
+    # CRITICAL FIX: full reload instead of only refresh
+    # (prevents alternating old/new results)
+    # ------------------------------------------------------
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 # ==========================================================
@@ -49,6 +67,8 @@ async def _async_update_listener(hass, entry):
 # ==========================================================
 
 async def async_unload_entry(hass, entry):
+    """Unload config entry."""
+
     unload_ok = await hass.config_entries.async_unload_platforms(
         entry, ["sensor"]
     )
