@@ -28,3 +28,5 @@ CONF_RETAIN_HOURS = "retain_hours"
 
 CONF_SHADING_ELEVATION = "shading_elevation"
 CONF_SHADING_OPACITY = "shading_opacity"
+
+CONF_FORECAST_UPDATE_HOURS = "forecast_update_hours"
