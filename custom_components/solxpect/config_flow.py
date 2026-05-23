@@ -26,6 +26,7 @@ from .const import (
     CONF_IS_CENTRAL_INVERTER,
     CONF_SHADING_ELEVATION,
     CONF_SHADING_OPACITY,
+    CONF_CELLS_TEMP_COEFF,
 )
 
 
@@ -41,7 +42,16 @@ def parse_36_values(raw: str, name: str) -> list[float]:
     if len(parts) != 36:
         raise ValueError(f"{name} must contain exactly 36 values")
 
-    return [float(x) for x in parts]
+    try:
+        return [float(x) for x in parts]
+    except ValueError as err:
+        raise ValueError(f"Invalid float in {name}") from err
+
+
+def csv_from_list(values: list[Any]) -> str:
+    """Convert list to CSV string."""
+
+    return ",".join(map(str, values))
 
 
 def build_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -50,18 +60,18 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
-                CONF_LATITUDE,
-                default=defaults.get(CONF_LATITUDE, 0.0),
-            ): vol.Coerce(float),
-
-            vol.Required(
                 CONF_LONGITUDE,
                 default=defaults.get(CONF_LONGITUDE, 0.0),
             ): vol.Coerce(float),
 
             vol.Required(
+                CONF_LATITUDE,
+                default=defaults.get(CONF_LATITUDE, 0.0),
+            ): vol.Coerce(float),
+
+            vol.Required(
                 CONF_CELLS_MAX_POWER,
-                default=defaults.get(CONF_CELLS_MAX_POWER, 6000),
+                default=defaults.get(CONF_CELLS_MAX_POWER, 6000.0),
             ): vol.Coerce(float),
 
             vol.Required(
@@ -81,7 +91,7 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
 
             vol.Required(
                 CONF_INVERTER_POWER_LIMIT,
-                default=defaults.get(CONF_INVERTER_POWER_LIMIT, 6000),
+                default=defaults.get(CONF_INVERTER_POWER_LIMIT, 15000.0),
             ): vol.Coerce(float),
 
             vol.Required(
@@ -91,42 +101,43 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
 
             vol.Required(
                 CONF_AZIMUTH,
-                default=defaults.get(CONF_AZIMUTH, 180),
+                default=defaults.get(CONF_AZIMUTH, 180.0),
             ): vol.Coerce(float),
 
             vol.Required(
                 CONF_TILT,
-                default=defaults.get(CONF_TILT, 40),
+                default=defaults.get(CONF_TILT, 40.0),
+            ): vol.Coerce(float),
+
+            vol.Required(
+                CONF_CELLS_TEMP_COEFF,
+                default=defaults.get(CONF_CELLS_TEMP_COEFF, -0.26),
             ): vol.Coerce(float),
 
             vol.Required(
                 CONF_ALBEDO,
-                default=defaults.get(CONF_ALBEDO, 0.2),
+                default=defaults.get(CONF_ALBEDO, 0.0),
             ): vol.Coerce(float),
 
             vol.Required(
                 CONF_SHADING_ELEVATION,
-                default=",".join(
-                    map(
-                        str,
-                        defaults.get(CONF_SHADING_ELEVATION, [0] * 36),
-                    )
+                default=csv_from_list(
+                    defaults.get(CONF_SHADING_ELEVATION, [0] * 36)
                 ),
             ): str,
 
             vol.Required(
                 CONF_SHADING_OPACITY,
-                default=",".join(
-                    map(
-                        str,
-                        defaults.get(CONF_SHADING_OPACITY, [0] * 36),
-                    )
+                default=csv_from_list(
+                    defaults.get(CONF_SHADING_OPACITY, [0] * 36)
                 ),
             ): str,
 
             vol.Required(
                 CONF_IS_CENTRAL_INVERTER,
-                default=defaults.get(CONF_IS_CENTRAL_INVERTER, True),
+                default=bool(
+                    defaults.get(CONF_IS_CENTRAL_INVERTER, True)
+                ),
             ): bool,
         }
     )
@@ -138,8 +149,8 @@ def parse_input(user_input: dict[str, Any]) -> dict[str, Any]:
     cleaned: dict[str, Any] = {}
 
     float_keys = [
-        CONF_LATITUDE,
         CONF_LONGITUDE,
+        CONF_LATITUDE,
         CONF_CELLS_MAX_POWER,
         CONF_CELLS_AREA,
         CONF_CELLS_EFFICIENCY,
@@ -148,6 +159,7 @@ def parse_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_INVERTER_EFFICIENCY,
         CONF_AZIMUTH,
         CONF_TILT,
+        CONF_CELLS_TEMP_COEFF,
         CONF_ALBEDO,
     ]
 
@@ -175,7 +187,7 @@ def parse_input(user_input: dict[str, Any]) -> dict[str, Any]:
 # CONFIG FLOW
 # ======================================================
 
-class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
+class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle config flow."""
 
     VERSION = 1
@@ -183,7 +195,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        """Get options flow."""
+        """Return options flow."""
 
         return SolxpectOptionsFlow(config_entry)
 
@@ -191,7 +203,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         self,
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
-        """Handle user step."""
+        """Handle user config step."""
 
         errors: dict[str, str] = {}
 
@@ -225,8 +237,10 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
 class SolxpectOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow."""
 
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
+    def __init__(self, config_entry) -> None:
+        """Initialize options flow."""
+
+        self._config_entry = config_entry
 
     async def async_step_init(
         self,
@@ -252,11 +266,10 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "unknown"
                 print(f"SolXpect options flow error: {err}")
 
-        current_data = (
-            self.config_entry.options
-            if self.config_entry.options
-            else self.config_entry.data
-        )
+        current_data = {
+            **self._config_entry.data,
+            **self._config_entry.options,
+        }
 
         return self.async_show_form(
             step_id="init",
