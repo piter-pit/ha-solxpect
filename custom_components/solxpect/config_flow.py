@@ -172,7 +172,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title="SolXpect PV Forecast",
                     data=parsed,
-                    options={},  # REQUIRED for OptionsFlow support
+                    options={},  # required
                 )
 
             except Exception:
@@ -187,7 +187,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 # ==========================================================
-# OPTIONS FLOW
+# OPTIONS FLOW (FIXED)
 # ==========================================================
 
 class SolxpectOptionsFlow(config_entries.OptionsFlow):
@@ -197,11 +197,23 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         errors = {}
 
+        current = {
+            **self._config_entry.data,
+            **self._config_entry.options,
+        }
+
         if user_input is not None:
             try:
-                parsed = parse_user_input(user_input)
+                merged = {**current, **user_input}
+                parsed = parse_user_input(merged)
 
-                # ✔ CORRECT: OptionsFlow writes into entry.options automatically
+                # 🔥 CRITICAL FIX: force reload integration after options change
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+
                 return self.async_create_entry(
                     title="",
                     data=parsed,
@@ -210,11 +222,6 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
             except Exception:
                 _LOGGER.exception("Options flow error")
                 errors["base"] = "invalid_input"
-
-        current = {
-            **self._config_entry.data,
-            **self._config_entry.options,
-        }
 
         return self.async_show_form(
             step_id="init",
