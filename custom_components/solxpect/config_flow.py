@@ -89,8 +89,15 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
 
             vol.Required(CONF_FORECAST_UPDATE_HOURS, default=4): vol.Coerce(int),
 
-            vol.Required(CONF_SHADING_ELEVATION, default=list_to_csv(get_default(defaults, CONF_SHADING_ELEVATION, [0] * 36))): str,
-            vol.Required(CONF_SHADING_OPACITY, default=list_to_csv(get_default(defaults, CONF_SHADING_OPACITY, [0] * 36))): str,
+            vol.Required(
+                CONF_SHADING_ELEVATION,
+                default=list_to_csv(get_default(defaults, CONF_SHADING_ELEVATION, [0] * 36)),
+            ): str,
+
+            vol.Required(
+                CONF_SHADING_OPACITY,
+                default=list_to_csv(get_default(defaults, CONF_SHADING_OPACITY, [0] * 36)),
+            ): str,
 
             vol.Required(CONF_IS_CENTRAL_INVERTER, default=get_default(defaults, CONF_IS_CENTRAL_INVERTER, True)): bool,
         }
@@ -124,7 +131,6 @@ def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
 
     data[CONF_RETAIN_ENABLED] = bool(user_input[CONF_RETAIN_ENABLED])
     data[CONF_RETAIN_HOURS] = int(user_input[CONF_RETAIN_HOURS])
-
     data[CONF_FORECAST_UPDATE_HOURS] = int(user_input[CONF_FORECAST_UPDATE_HOURS])
 
     data[CONF_SHADING_ELEVATION] = parse_36_values(
@@ -166,7 +172,7 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title="SolXpect PV Forecast",
                     data=parsed,
-                    options={},   # ✅ IMPORTANT FIX
+                    options={},  # REQUIRED for OptionsFlow support
                 )
 
             except Exception:
@@ -195,7 +201,7 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
             try:
                 parsed = parse_user_input(user_input)
 
-                # ✅ FIX: options instead of data
+                # ✔ CORRECT: OptionsFlow writes into entry.options automatically
                 return self.async_create_entry(
                     title="",
                     data=parsed,
