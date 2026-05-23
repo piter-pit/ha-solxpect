@@ -27,10 +27,9 @@ from .const import (
     CONF_SHADING_ELEVATION,
     CONF_SHADING_OPACITY,
     CONF_IS_CENTRAL_INVERTER,
-
-    # 🔥 NEW
     CONF_RETAIN_ENABLED,
     CONF_RETAIN_HOURS,
+    CONF_FORECAST_UPDATE_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,7 +93,7 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_CELLS_TEMP_COEFF, default=get_default(defaults, CONF_CELLS_TEMP_COEFF, -0.26)): vol.Coerce(float),
             vol.Required(CONF_ALBEDO, default=get_default(defaults, CONF_ALBEDO, 0.0)): vol.Coerce(float),
 
-            # ---------------- RETAIN (NEW) ----------------
+            # ---------------- RETAIN ----------------
             vol.Required(
                 CONF_RETAIN_ENABLED,
                 default=get_default(defaults, CONF_RETAIN_ENABLED, True),
@@ -102,8 +101,14 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
 
             vol.Required(
                 CONF_RETAIN_HOURS,
-                default=get_default(defaults, CONF_RETAIN_HOURS, 12),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=168)),
+                default=12,
+            ): vol.Coerce(int),
+
+            # ---------------- FORECAST UPDATE (NEW) ----------------
+            vol.Required(
+                CONF_FORECAST_UPDATE_HOURS,
+                default=4,
+            ): vol.Coerce(int),
 
             # ---------------- SHADING ----------------
             vol.Required(
@@ -155,6 +160,9 @@ def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
     # RETAIN
     data[CONF_RETAIN_ENABLED] = bool(user_input[CONF_RETAIN_ENABLED])
     data[CONF_RETAIN_HOURS] = int(user_input[CONF_RETAIN_HOURS])
+
+    # FORECAST UPDATE (NEW)
+    data[CONF_FORECAST_UPDATE_HOURS] = int(user_input[CONF_FORECAST_UPDATE_HOURS])
 
     # SHADING
     data[CONF_SHADING_ELEVATION] = parse_36_values(
