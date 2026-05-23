@@ -55,7 +55,7 @@ class SolxpectCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
 
-        cfg = self.config_entry.data
+        cfg = {**self.config_entry.data, **self.config_entry.options}
         tz = dt_util.get_default_time_zone()
 
         plant = SolarPowerPlant(
