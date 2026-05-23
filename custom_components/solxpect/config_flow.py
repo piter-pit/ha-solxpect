@@ -207,17 +207,16 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
                 merged = {**current, **user_input}
                 parsed = parse_user_input(merged)
 
-                # 🔥 CRITICAL FIX: force reload integration after options change
-                self.hass.async_create_task(
-                    self.hass.config_entries.async_reload(
-                        self._config_entry.entry_id
-                    )
-                )
-
-                return self.async_create_entry(
+                result = self.async_create_entry(
                     title="",
                     data=parsed,
                 )
+
+                await self.hass.config_entries.async_reload(
+                    self._config_entry.entry_id
+                )
+
+                return result
 
             except Exception:
                 _LOGGER.exception("Options flow error")
