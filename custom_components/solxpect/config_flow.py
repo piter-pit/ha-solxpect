@@ -85,9 +85,9 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_ALBEDO, default=get_default(defaults, CONF_ALBEDO, 0.0)): vol.Coerce(float),
 
             vol.Required(CONF_RETAIN_ENABLED, default=get_default(defaults, CONF_RETAIN_ENABLED, True)): bool,
-            vol.Required(CONF_RETAIN_HOURS, default=12): vol.Coerce(int),
+            vol.Required(CONF_RETAIN_HOURS, default=get_default(defaults, CONF_RETAIN_HOURS, 12)): vol.Coerce(float),
 
-            vol.Required(CONF_FORECAST_UPDATE_HOURS, default=4): vol.Coerce(int),
+            vol.Required(CONF_FORECAST_UPDATE_HOURS, default=get_default(defaults, CONF_FORECAST_UPDATE_HOURS, 4)): vol.Coerce(float),
 
             vol.Required(
                 CONF_SHADING_ELEVATION,
@@ -124,14 +124,14 @@ def parse_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_TILT,
         CONF_CELLS_TEMP_COEFF,
         CONF_ALBEDO,
+        CONF_RETAIN_HOURS,
+        CONF_FORECAST_UPDATE_HOURS,
     ]
 
     for field in float_fields:
         data[field] = float(user_input[field])
 
     data[CONF_RETAIN_ENABLED] = bool(user_input[CONF_RETAIN_ENABLED])
-    data[CONF_RETAIN_HOURS] = int(user_input[CONF_RETAIN_HOURS])
-    data[CONF_FORECAST_UPDATE_HOURS] = int(user_input[CONF_FORECAST_UPDATE_HOURS])
 
     data[CONF_SHADING_ELEVATION] = parse_36_values(
         user_input[CONF_SHADING_ELEVATION],
