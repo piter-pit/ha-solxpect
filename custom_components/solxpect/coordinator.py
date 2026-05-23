@@ -47,17 +47,18 @@ def build_daily_hours(forecast, tz):
 class SolxpectCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass, config_entry):
+        cfg = {**config_entry.data, **config_entry.options}
+        update_hours = float(cfg.get("forecast_update_hours", 4))
+        update_hours = max(1, update_hours)
+        
         super().__init__(
             hass,
             logger=_LOGGER,
             name="solxpect_coordinator",
-            update_interval=timedelta(hours=4),
+            update_interval=timedelta(hours=update_hours),
         )
 
         self.config_entry = config_entry
-
-        # --- CONFIG (from config_flow + options) ---
-        cfg = {**config_entry.data, **config_entry.options}
 
         # retain switch (on/off)
         self._retain_latest_forecast_when_unavailable = cfg.get(
