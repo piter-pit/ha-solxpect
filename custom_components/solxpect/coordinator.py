@@ -75,6 +75,9 @@ class SolxpectCoordinator(DataUpdateCoordinator):
             shadingElevation=[0]*36,
             shadingOpacity=[0]*36,
         )
+        _LOGGER.debug("CFG: %s", cfg)
+        _LOGGER.debug("TZ: %s", tz)
+        _LOGGER.debug("PLANT: %s", vars(plant))
 
         forecast = await self.hass.async_add_executor_job(
             forecast_today_and_tomorrow,
