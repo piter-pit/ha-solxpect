@@ -1,20 +1,20 @@
+import tzlocal
 import logging
-from datetime import datetime, timedelta
 
+from datetime import datetime, timedelta
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from homeassistant.util import dt as dt_util
-
 from .forecast import forecast_today_and_tomorrow
 from .SolarPowerPlant import SolarPowerPlant
+from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
 
 # ==========================================================
-# DAILY HOURS BUILDER
+# DAILY HOURS BUILDER (UNCHANGED)
 # ==========================================================
 
 def build_daily_hours(forecast, tz):
@@ -52,13 +52,11 @@ class SolxpectCoordinator(DataUpdateCoordinator):
         self.hass = hass
         self.config_entry = config_entry
 
-        # ❗ IMPORTANT: NO SNAPSHOT HERE
-
         super().__init__(
             hass,
             logger=_LOGGER,
             name="solxpect_coordinator",
-            update_interval=timedelta(hours=4),  # static safe interval
+            update_interval=timedelta(hours=4),
         )
 
         self.tz = dt_util.get_default_time_zone()
@@ -68,11 +66,10 @@ class SolxpectCoordinator(DataUpdateCoordinator):
         self._max_forecast_age = timedelta(hours=12)
 
     # ======================================================
-    # ALWAYS FRESH CONFIG (CRITICAL FIX)
+    # IMPORTANT: ALWAYS FRESH CONFIG (FIX)
     # ======================================================
 
-    @property
-    def cfg(self):
+    def _cfg(self):
         return {
             **self.config_entry.data,
             **self.config_entry.options,
@@ -84,7 +81,7 @@ class SolxpectCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
 
-        cfg = self.cfg  # 🔥 ALWAYS FRESH
+        cfg = self._cfg()  # 🔥 always fresh snapshot per update
 
         try:
             plant = SolarPowerPlant(
@@ -99,8 +96,8 @@ class SolxpectCoordinator(DataUpdateCoordinator):
                 inverterPowerLimit=cfg["inverter_power_limit"],
                 inverterEfficiency=cfg["inverter_efficiency"],
                 isCentralInverter=int(cfg["is_central_inverter"]),
-                azimuthAngle=cfg["azimuth"],
-                tiltAngle=cfg["tilt"],
+                azimuthAngle=cfg["azimuth_angle"],   # <-- WAŻNE: zgodne z const.py
+                tiltAngle=cfg["tilt_angle"],         # <-- WAŻNE: zgodne z const.py
                 shadingElevation=cfg.get("shading_elevation", [0] * 36),
                 shadingOpacity=cfg.get("shading_opacity", [0] * 36),
             )
