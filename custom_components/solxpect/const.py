@@ -22,3 +22,9 @@ CONF_SHADING_ELEVATION = "shading_elevation"
 CONF_SHADING_OPACITY = "shading_opacity"
 
 CONF_IS_CENTRAL_INVERTER = "is_central_inverter"
+
+CONF_RETAIN_ENABLED = "retain_enabled"
+CONF_RETAIN_HOURS = "retain_hours"
+
+CONF_SHADING_ELEVATION = "shading_elevation"
+CONF_SHADING_OPACITY = "shading_opacity"
