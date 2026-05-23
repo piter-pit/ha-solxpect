@@ -283,10 +283,18 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
             try:
                 parsed = parse_user_input(user_input)
 
-                return self.async_create_entry(
+                result = self.async_create_entry(
                     title="",
                     data=parsed,
                 )
+
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+
+                return result
 
             except ValueError as err:
                 _LOGGER.error("Options validation error: %s", err)
