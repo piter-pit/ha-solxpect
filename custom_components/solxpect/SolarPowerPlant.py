@@ -23,7 +23,7 @@ class SolarPowerPlant:
         self.diffuseEfficiency = diffuseEfficiency / 100.0  # fraction (e.g. 0.85)
         self.inverterPowerLimit = inverterPowerLimit  # W
         self.inverterEfficiency = inverterEfficiency / 100.0  # fraction (e.g. 0.96)
-        self.isCentralInverter = isCentralInverter  # boolean
+        self.isCentralInverter = bool(isCentralInverter)
         self.azimuthAngle = azimuthAngle  # degrees, 0 = North, 90 = East
         self.tiltAngle = tiltAngle  # degrees  from horizontal
         self.shadingElevation = shadingElevation  # array of elevation threshold angles per azimuth bin
