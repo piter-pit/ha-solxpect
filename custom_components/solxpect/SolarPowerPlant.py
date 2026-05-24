@@ -1,6 +1,10 @@
 import math
 import pvlib
+import logging
+
 from datetime import datetime, timezone
+
+_LOGGER = logging.getLogger(__name__)
 
 class SolarPowerPlant: 
         #Class should reproduce the java class by the same name in solXpect:
@@ -32,6 +36,11 @@ class SolarPowerPlant:
         # shortwaveRadiation: W/m², total shortwave (used for albedo)
         # epochTimeSeconds: Unix timestamp
         # ambientTemperature: °C
+
+        _LOGGER.debug(
+            "GETPOWER SELF STATE: %s",
+            self.__dict__
+        )
 
         i = datetime.fromtimestamp(epochTimeSeconds, tz=timezone.utc)
 
