@@ -3,8 +3,11 @@ import requests
 import pandas as pd
 import pvlib
 import tzlocal
+import logging
 
 from .SolarPowerPlant import SolarPowerPlant
+
+_LOGGER = logging.getLogger(__name__)
 
 def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     url = "https://api.open-meteo.com/v1/forecast"
