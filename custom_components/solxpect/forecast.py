@@ -83,8 +83,6 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     start_dt = start_local.astimezone(timezone.utc)
     end_dt = end_local.astimezone(timezone.utc)
 
-    SYSTEM_TZ = tzlocal.get_localzone()
-
     meteo_df = fetch_open_meteo_data(
         plant.latitude,
         plant.longitude,
@@ -92,6 +90,8 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
         end_dt
     )
 
+    _LOGGER.debug("plant RAW w forecast_today_and_tomorrow: %s", plant)
+    
     if meteo_df.empty:
         return []
 
