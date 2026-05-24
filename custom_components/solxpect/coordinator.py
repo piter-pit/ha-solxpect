@@ -184,6 +184,7 @@ class SolxpectCoordinator(DataUpdateCoordinator):
         self._refresh_dynamic_settings()
 
         cfg = self._cfg()
+        _LOGGER.debug("CFG RAW w _async_update_data: %s", cfg)
 
         try:
 
