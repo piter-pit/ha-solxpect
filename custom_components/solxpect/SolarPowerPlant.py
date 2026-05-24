@@ -111,30 +111,10 @@ class SolarPowerPlant:
         else:
             dcPower = totalIrradianceOnCell / 1000 * (1 + (cellTemperature - 25) * self.cellsTempCoeff) * self.cellsMaxPower
         
-        if not self.isCentralInverter:
-            acPower = min(dcPower * self.inverterEfficiency, self.inverterPowerLimit)
-                
-            _LOGGER.debug(
-                "BRANCH: NON-CENTRAL inverter → CLAMP applied → acPower=%s",
-            acPower,
-            )
-                
+        if self.isCentralInverter:
+            acPower = min(dcPower * self.inverterEfficiency, self.inverterPowerLimit)               
         else:
             acPower = dcPower * self.inverterEfficiency
-                
-            _LOGGER.debug(
-                "BRANCH: CENTRAL inverter → NO CLAMP → acPower=%s",
-            acPower,
-            )
-
-        _LOGGER.debug(
-            "CentralInv= %s DC=%s AC_before_limit=%s LIMIT=%s FINAL=%s",
-            self.isCentralInverter,
-            dcPower,
-            dcPower * self.inverterEfficiency,
-            self.inverterPowerLimit,
-            acPower,
-        )
 
         return float(acPower)
 
