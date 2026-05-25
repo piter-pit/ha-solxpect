@@ -104,21 +104,17 @@ Each sensor also provides detailed hourly PV production values in its attributes
 ## solXpect
 https://github.com/woheller69/solxpect
 
-SolXpect is a photovoltaic forecasting model based on physical solar calculations:
+SolXpect is a photovoltaic forecasting model for Android based on physical solar calculations:
 - solar position
 - irradiance models
 - temperature correction
 - inverter constraints
 - shading
 
-It provides hourly and daily PV forecasts.
-
----
-
 ## solXpect_meets_python
 https://github.com/blablubbbb/solXpect_meets_python
 
-Python adaptation of solXpect designed for integration into automation systems like Home Assistant.
+Python adaptation of solXpect.
 
 ---
 
