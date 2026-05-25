@@ -50,12 +50,11 @@ In HACS:
 2. Open menu (⋮)
 3. Select **Custom repositories**
 4. Add: https://github.com/piter-pit/ha-solxpect
-
 5. Category: **Integration**
 6. Click **Add**
-7. Search for **solXpect**
-8. Install
-9. Restart Home Assistant
+7. Search for **SolXpect PV Forecast**
+8. Install in HACS
+13. Restart Home Assistant
 
 ---
 
@@ -69,10 +68,7 @@ Settings → Devices & Services → Add Integration → solXpect
 
 # Current limitations
 
-- Only **one PV string / panel group** is supported
-- No multi-inverter support
-- No multiple orientations
-- No UI for shading configuration yet
+- Only **one PV string / panel group** is supported - No multiple orientations
 
 ---
 
@@ -85,7 +81,11 @@ The integration creates the following sensors:
 | `sensor.solxpect_today` | PV forecast for today |
 | `sensor.solxpect_tomorrow` | PV forecast for tomorrow |
 
-Units: Wh / kWh (depending on HA configuration)
+Units: kWh
+
+## Detailed hourly data
+
+Each sensor also provides detailed hourly PV production values in its attributes under `hours`.
 
 ---
 
@@ -96,11 +96,6 @@ Units: Wh / kWh (depending on HA configuration)
 - Smart home energy scheduling
 - Forecast-based automations
 - Energy dashboards
-
-Example:
-- start washing machine only if forecast > threshold
-- delay EV charging to higher production day
-- adjust battery reserve dynamically
 
 ---
 
@@ -136,13 +131,27 @@ Thanks to:
 
 ---
 
+# Development Status
+
+This integration is currently in active development.
+
+Some features may change, break, or be refactored without notice.
+
+It is intended for testing and early adoption purposes.
+
+---
+
 # Disclaimer
 
-This integration provides estimates only.
+This integration is provided "as is", without any warranties.
 
-Actual PV output may differ due to:
-- weather changes
-- shading conditions
-- hardware efficiency
-- installation specifics
-- forecast error
+Use it at your own risk.
+
+The authors are not responsible for:
+- incorrect PV forecasts
+- data inaccuracies
+- Home Assistant instability
+- issues caused by external weather data (Open-Meteo)
+- incorrect automation decisions based on forecasts
+
+Always verify critical automations with additional safeguards.
