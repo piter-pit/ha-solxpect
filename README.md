@@ -115,7 +115,7 @@ Each shading cell must contain exactly **36 comma-separated values** representin
 
 ## Important Notes About Shading
 
-Shading currently affects only the **direct beam irradiation** component.
+Shading affects only the **direct beam irradiation** component.
 
 If forecast values still appear too high after configuring shading, it is recommended to reduce the `Diffuse Efficiency` parameter to better match real-world conditions.
 
