@@ -54,15 +54,70 @@ In HACS:
 6. Click **Add**
 7. Search for **SolXpect PV Forecast**
 8. Install in HACS
-13. Restart Home Assistant
+9. Settings → Devices & Services → Add Integration → solXpect PV Forecast
 
 ---
 
 # Configuration
 
-After installation:
+The configuration UI is still being refined and may require some additional polishing.  
+For now, please note the following important details:
 
-Settings → Devices & Services → Add Integration → solXpect
+- All configuration fields must currently be filled in.
+- `Cells Max Power` is currently **not used directly** in calculations.  
+  Since `Cells Efficiency` and `Cells Area` were introduced, the panel power is calculated automatically from these values.
+
+## Geographic Coordinates
+
+Latitude and longitude should be entered in decimal format, for example:
+
+```text
+13.92873
+```
+
+Coordinate conventions follow the Open-Meteo API standard:
+
+- Positive latitude values = Northern Hemisphere
+- Negative latitude values = Southern Hemisphere
+- Positive longitude values = Eastern Hemisphere
+- Negative longitude values = Western Hemisphere
+
+Examples:
+
+```text
+Latitude: 52.2297
+Longitude: 21.0122
+```
+
+## Central Inverter Mode
+
+If `Is Central Inverter` is enabled, the total generated PV power will be limited by the configured `Inverter Power Limit`.
+
+## Shading Configuration
+
+Each shading cell must contain exactly **36 comma-separated values** representing obstacles for azimuth sectors in 10° increments:
+
+```text
+0°–10°, 10°–20°, 20°–30°, ...
+```
+
+### Shading Elevation
+
+`Shading Elevation` defines the maximum obstacle height angle for each sector:
+
+- Range: `0°–90°`
+
+### Shading Opacity
+
+`Shading Opacity` defines the attenuation strength of the obstacle:
+
+- Range: `0%–100%`
+
+## Important Notes About Shading
+
+Shading currently affects only the **direct beam irradiation** component.
+
+If forecast values still appear too high after configuring shading, it is recommended to reduce the `Diffuse Efficiency` parameter to better match real-world conditions.
 
 ---
 
