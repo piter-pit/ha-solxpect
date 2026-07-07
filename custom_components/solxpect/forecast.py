@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import time
 import requests
 import pandas as pd
 import pvlib
@@ -8,6 +9,7 @@ import logging
 from .SolarPowerPlant import SolarPowerPlant
 
 _LOGGER = logging.getLogger(__name__)
+
 
 def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
     url = "https://api.open-meteo.com/v1/forecast"
@@ -20,9 +22,52 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
         "timezone": "UTC"
     }
 
-    full_url = requests.Request('GET', url, params=params).prepare().url
+    full_url = requests.Request(
+        'GET',
+        url,
+        params=params
+    ).prepare().url
 
-    response = requests.get(url, params=params)
+    _LOGGER.debug(
+        "Open-Meteo request: %s",
+        full_url
+    )
+
+    response = None
+
+    for attempt in range(5):
+
+        try:
+
+            response = requests.get(
+                url,
+                params=params,
+                timeout=(5, 20)
+            )
+
+            if response.status_code != 503:
+                break
+
+            _LOGGER.warning(
+                "Open-Meteo returned 503, retry %s/5",
+                attempt + 1
+            )
+
+        except requests.RequestException as err:
+
+            _LOGGER.warning(
+                "Open-Meteo request failed (%s), retry %s/5",
+                err,
+                attempt + 1
+            )
+
+        if attempt < 4:
+            time.sleep(10)
+
+    if response is None:
+        raise RuntimeError(
+            "Open-Meteo unavailable after retries"
+        )
 
     if response.status_code != 200:
         response.raise_for_status()
@@ -34,8 +79,14 @@ def fetch_open_meteo_data(latitude, longitude, start_dt, end_dt):
 
     df = pd.DataFrame(data["hourly"])
 
-    df["time"] = pd.to_datetime(df["time"], utc=True)
-    df = df.sort_values("time").reset_index(drop=True)
+    df["time"] = pd.to_datetime(
+        df["time"],
+        utc=True
+    )
+
+    df = df.sort_values(
+        "time"
+    ).reset_index(drop=True)
 
     return df
 
@@ -80,7 +131,13 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     SYSTEM_TZ = tzlocal.get_localzone()
 
     now_local = datetime.now(SYSTEM_TZ)
-    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_local = now_local.replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0
+    )
+
     end_local = start_local + timedelta(hours=48)
 
     start_dt = start_local.astimezone(timezone.utc)
@@ -93,8 +150,11 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
         end_dt
     )
 
-    _LOGGER.debug("plant RAW w forecast_today_and_tomorrow: %s", plant)
-    
+    _LOGGER.debug(
+        "plant RAW w forecast_today_and_tomorrow: %s",
+        plant
+    )
+
     if meteo_df.empty:
         return []
 
@@ -104,17 +164,23 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
     # FIX 5 (CRITICAL): iterate over REAL Open-Meteo timestamps
     # instead of synthetic hourly generator
     # ============================================================
+
     for hour in range(48):
+
         hour_start = start_dt + timedelta(hours=hour)
         energy_wh = 0.0
 
-        dt_step = hour_start + timedelta(minutes=30) #Immitate solXpect implementataion
+        dt_step = hour_start + timedelta(minutes=30)
         hour_end = hour_start + timedelta(hours=1)
-        inputs = prepare_weather(hour_end, meteo_df)
+
+        inputs = prepare_weather(
+            hour_end,
+            meteo_df
+        )
 
         if inputs is None:
             continue
-        
+
         energy_wh = plant.getPower(
             solarPowerNormal=inputs["solar_power_normal"],
             solarPowerDiffuse=inputs["solar_power_diffuse"],
@@ -122,9 +188,16 @@ def forecast_today_and_tomorrow(plant: SolarPowerPlant, city_name: str):
             epochTimeSeconds=int(dt_step.timestamp()),
             ambientTemperature=inputs["ambient_temperature"]
         )
-        results.append((hour_start, energy_wh))
-        
+
+        results.append(
+            (
+                hour_start,
+                energy_wh
+            )
+        )
+
     return results
+
 
 def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
     """
@@ -134,7 +207,9 @@ def get_shading_factor(elevation_deg, azimuth_deg, thresholds, opacities):
     opacities: list of shading percentages per azimuth bin
     Assumes 36 bins covering 0–360° in 10° increments.
     """
+
     bin_index = int(azimuth_deg // 10) % 36
+
     threshold = thresholds[bin_index]
     opacity = opacities[bin_index]
 
