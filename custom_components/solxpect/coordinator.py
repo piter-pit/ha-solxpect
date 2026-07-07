@@ -93,12 +93,15 @@ class SolxpectCoordinator(DataUpdateCoordinator):
         # FORCE REFRESH AT MIDNIGHT
         # ==================================================
 
+        self._midnight_offset_minute = random.randint(0, 15)
+        self._midnight_offset_second = random.randint(15, 59)
+        
         self._midnight_unsub = async_track_time_change(
             hass,
             self._handle_midnight_refresh,
             hour=0,
-            minute=0,
-            second=0,
+            minute=self._midnight_offset_minute,
+            second=self._midnight_offset_second,
         )
 
     # ======================================================
