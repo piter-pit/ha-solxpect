@@ -1,4 +1,5 @@
 import logging
+import random
 
 from datetime import datetime, timedelta
 
@@ -74,6 +75,7 @@ class SolxpectCoordinator(DataUpdateCoordinator):
         self.tz = dt_util.get_default_time_zone()
 
         self._last_successful_update = None
+        self._midnight_refresh = False
 
         super().__init__(
             hass,
@@ -175,7 +177,14 @@ class SolxpectCoordinator(DataUpdateCoordinator):
             "Forcing forecast refresh at midnight"
         )
 
-        await self.async_request_refresh()
+        self._midnight_refresh = True
+
+        try:
+            await self.async_request_refresh()
+
+        except Exception:
+            self._midnight_refresh = False
+            raise
 
     # ======================================================
     # MAIN UPDATE
@@ -249,12 +258,45 @@ class SolxpectCoordinator(DataUpdateCoordinator):
                 dt_util.utcnow()
             )
 
+            self._midnight_refresh = False
+
             return {
                 "today": today,
                 "tomorrow": tomorrow,
             }
 
         except Exception as err:
+
+            if (
+                self._midnight_refresh
+                and self.data
+                and self._last_successful_update
+                and (
+                    dt_util.utcnow()
+                    - self._last_successful_update
+                ) <= self._max_forecast_age
+            ):
+                
+                _LOGGER.warning(
+                    "Midnight refresh failed, shifting tomorrow forecast to today"
+                )
+
+                empty_day = {
+                    f"{h:02d}:00": 0.0
+                    for h in range(24)
+                }
+
+                shifted = {
+                    "today": self.data.get(
+                        "tomorrow",
+                        empty_day,
+                    ),
+                    "tomorrow": empty_day,
+                }
+
+                self._midnight_refresh = False
+
+                return shifted
 
             if (
                 not self._retain_latest_forecast_when_unavailable
