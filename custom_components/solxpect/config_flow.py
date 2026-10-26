@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-import asyncio
 
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 
 from .const import (
@@ -31,12 +31,10 @@ from .const import (
     CONF_RETAIN_ENABLED,
     CONF_RETAIN_HOURS,
     CONF_FORECAST_UPDATE_HOURS,
+    DEFAULT_NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-# 🔥 CRITICAL: prevents race conditions during reload/update
-_RELOAD_LOCK = asyncio.Lock()
 
 
 # ==========================================================
@@ -173,8 +171,12 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 parsed = parse_user_input(user_input)
 
+                # the name becomes the entry title and prefixes the
+                # sensor names, so several plants can be told apart
+                title = str(user_input.get(CONF_NAME, DEFAULT_NAME)).strip() or DEFAULT_NAME
+
                 return self.async_create_entry(
-                    title="SolXpect PV Forecast",
+                    title=title,
                     data=parsed,
                     options={},
                 )
@@ -183,15 +185,19 @@ class SolxpectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Config flow error")
                 errors["base"] = "invalid_input"
 
+        name_schema = vol.Schema(
+            {vol.Required(CONF_NAME, default=DEFAULT_NAME): str}
+        )
+
         return self.async_show_form(
             step_id="user",
-            data_schema=build_schema({}),
+            data_schema=name_schema.extend(build_schema({}).schema),
             errors=errors,
         )
 
 
 # ==========================================================
-# OPTIONS FLOW (FIXED + SAFE RELOAD)
+# OPTIONS FLOW
 # ==========================================================
 
 class SolxpectOptionsFlow(config_entries.OptionsFlow):
@@ -212,18 +218,14 @@ class SolxpectOptionsFlow(config_entries.OptionsFlow):
                 merged = {**current, **user_input}
                 parsed = parse_user_input(merged)
 
-                async with _RELOAD_LOCK:
-
-                    entry = self.async_create_entry(
-                        title="",
-                        data=parsed,
-                    )
-
-                    await self.hass.config_entries.async_reload(
-                        self._config_entry.entry_id
-                    )
-
-                    return entry
+                # No reload here: the update listener in __init__.py
+                # reloads the entry once, after the new options are saved.
+                # Reloading here as well caused a second reload (and a
+                # second Open-Meteo request) that still used the old options.
+                return self.async_create_entry(
+                    title="",
+                    data=parsed,
+                )
 
             except Exception:
                 _LOGGER.exception("Options flow error")

@@ -1,6 +1,6 @@
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-DOMAIN = "solxpect"
+from .const import DOMAIN
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -16,8 +16,10 @@ class SolxpectTodaySensor(CoordinatorEntity):
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "SolXpect Today"
-        self._attr_unique_id = "solxpect_today"
+        entry = coordinator.config_entry
+        # per-entry name and unique ID, so several plants can coexist
+        self._attr_name = f"{entry.title} Today"
+        self._attr_unique_id = f"{entry.entry_id}_today"
         self._attr_device_class = "energy"
         self._attr_state_class = "total"
         self._attr_native_unit_of_measurement = "kWh"
@@ -47,8 +49,10 @@ class SolxpectTomorrowSensor(CoordinatorEntity):
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "SolXpect Tomorrow"
-        self._attr_unique_id = "solxpect_tomorrow"
+        entry = coordinator.config_entry
+        # per-entry name and unique ID, so several plants can coexist
+        self._attr_name = f"{entry.title} Tomorrow"
+        self._attr_unique_id = f"{entry.entry_id}_tomorrow"
         self._attr_device_class = "energy"
         self._attr_state_class = "total"
         self._attr_native_unit_of_measurement = "kWh"

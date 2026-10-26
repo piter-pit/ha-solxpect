@@ -338,3 +338,6 @@ class SolxpectCoordinator(DataUpdateCoordinator):
             self._midnight_unsub()
 
             self._midnight_unsub = None
+
+        # also stop HA's own scheduled refresh and debouncer
+        await super().async_shutdown()

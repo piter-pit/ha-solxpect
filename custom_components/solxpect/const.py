@@ -1,5 +1,10 @@
 DOMAIN = "solxpect"
 
+DEFAULT_NAME = "SolXpect"
+
+# title every entry got before the name could be chosen
+LEGACY_TITLE = "SolXpect PV Forecast"
+
 CONF_LONGITUDE = "longitude"
 CONF_LATITUDE = "latitude"
 
